@@ -88,7 +88,15 @@ defmodule AgencyWeb.ProjectLive do
   end
 
   def handle_event("open_feature_form", _params, socket) do
+    {:noreply, assign(socket, :editing_feature, %Delivery.Feature{})}
+  end
+
+  def handle_event("close_feature_form", _params, socket) do
     {:noreply, assign(socket, :editing_feature, nil)}
+  end
+
+  def handle_event("close_task_form", _params, socket) do
+    {:noreply, socket |> assign(:editing_task, nil) |> assign(:editing_task_feature_id, nil)}
   end
 
   def handle_event("open_task_form", %{"feature-id" => fid} = params, socket) do
@@ -170,26 +178,20 @@ defmodule AgencyWeb.ProjectLive do
   def handle_info({:feature_saved, _feature}, socket) do
     features = Delivery.list_features_with_details(socket.assigns.project.id)
 
-    socket =
-      socket
-      |> assign(:features, features)
-      |> assign(:editing_feature, nil)
-      |> push_event("js-hide-modal", %{id: "feature-form-modal"})
-
-    {:noreply, socket}
+    {:noreply,
+     socket
+     |> assign(:features, features)
+     |> assign(:editing_feature, nil)}
   end
 
   def handle_info({:task_saved, _task}, socket) do
     features = Delivery.list_features_with_details(socket.assigns.project.id)
 
-    socket =
-      socket
-      |> assign(:features, features)
-      |> assign(:editing_task, nil)
-      |> assign(:editing_task_feature_id, nil)
-      |> push_event("js-hide-modal", %{id: "task-form-modal"})
-
-    {:noreply, socket}
+    {:noreply,
+     socket
+     |> assign(:features, features)
+     |> assign(:editing_task, nil)
+     |> assign(:editing_task_feature_id, nil)}
   end
 
   def handle_info({:member_changed, _}, socket) do
@@ -296,7 +298,12 @@ defmodule AgencyWeb.ProjectLive do
         />
       </.modal>
 
-      <.modal id="feature-form-modal">
+      <.modal
+        :if={@editing_feature}
+        id="feature-form-modal"
+        show
+        on_cancel={JS.push("close_feature_form")}
+      >
         <.live_component
           module={FeatureFormComponent}
           id="feature-form"
@@ -307,7 +314,12 @@ defmodule AgencyWeb.ProjectLive do
         />
       </.modal>
 
-      <.modal id="task-form-modal">
+      <.modal
+        :if={@editing_task_feature_id}
+        id="task-form-modal"
+        show
+        on_cancel={JS.push("close_task_form")}
+      >
         <.live_component
           module={TaskFormComponent}
           id="task-form"
@@ -356,7 +368,7 @@ defmodule AgencyWeb.ProjectLive do
           </h2>
           <.button
             :if={@can_edit}
-            phx-click={JS.push("open_feature_form") |> show_modal("feature-form-modal")}
+            phx-click="open_feature_form"
           >
             + Add Feature
           </.button>

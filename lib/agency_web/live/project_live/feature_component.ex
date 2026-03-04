@@ -193,7 +193,7 @@ defmodule AgencyWeb.ProjectLive.FeatureComponent do
 
           <.button
             :if={@can_edit}
-            phx-click={JS.push("open_feature_form", value: %{id: @feature.id}) |> show_modal("feature-form-modal")}
+            phx-click={JS.push("open_feature_form", value: %{id: @feature.id})}
             class="text-xs py-0.5 px-2"
           >
             Edit
@@ -217,10 +217,7 @@ defmodule AgencyWeb.ProjectLive.FeatureComponent do
             <h4 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Tasks</h4>
             <.button
               :if={@can_edit}
-              phx-click={
-                JS.push("open_task_form", value: %{"feature-id": @feature.id})
-                |> show_modal("task-form-modal")
-              }
+              phx-click={JS.push("open_task_form", value: %{"feature-id": @feature.id})}
               class="text-xs py-0.5 px-2"
             >
               + Add task
@@ -252,7 +249,6 @@ defmodule AgencyWeb.ProjectLive.FeatureComponent do
                     JS.push("open_task_form",
                       value: %{"feature-id": @feature.id, "task-id": task.id}
                     )
-                    |> show_modal("task-form-modal")
                   }
                   class="text-xs py-0.5 px-2"
                 >

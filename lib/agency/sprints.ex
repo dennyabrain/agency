@@ -11,6 +11,15 @@ defmodule Agency.Sprints do
     Repo.all(from s in Sprint, order_by: [desc: s.number])
   end
 
+  @doc "Loads sprints with features, teams, and team members for the Gantt chart."
+  def list_sprints_with_details do
+    Repo.all(
+      from s in Sprint,
+        order_by: [asc: s.start_date, asc: s.number],
+        preload: [features: [:tasks, team: [team_members: :user]]]
+    )
+  end
+
   def get_sprint!(id), do: Repo.get!(Sprint, id)
 
   @doc "Returns the sprint whose date range contains today, or nil."

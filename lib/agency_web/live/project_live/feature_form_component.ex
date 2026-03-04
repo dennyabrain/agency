@@ -7,13 +7,20 @@ defmodule AgencyWeb.ProjectLive.FeatureFormComponent do
   @impl true
   def update(%{feature: feature} = assigns, socket) do
     feature = feature || %Feature{}
-    changeset = Delivery.change_feature(feature)
+    prev_id = socket.assigns[:feature] && socket.assigns.feature.id
 
-    {:ok,
-     socket
-     |> assign(assigns)
-     |> assign(:feature, feature)
-     |> assign_form(changeset)}
+    socket = socket |> assign(assigns) |> assign(:feature, feature)
+
+    # Only rebuild the form when the feature changes, not on every parent render.
+    # This prevents in-progress edits from being discarded when the parent re-renders.
+    socket =
+      if prev_id != feature.id do
+        assign_form(socket, Delivery.change_feature(feature))
+      else
+        socket
+      end
+
+    {:ok, socket}
   end
 
   @impl true
