@@ -23,13 +23,14 @@ defmodule AgencyWeb.Router do
   scope "/", AgencyWeb do
     pipe_through [:browser, :require_authenticated_user]
 
-    live_session :require_authenticated_user,
+    live_session :app,
       on_mount: [{AgencyWeb.UserAuth, :ensure_authenticated}] do
+      live "/", DashboardLive, :index
+      live "/projects/:id/plan", ProjectLive, :plan
+      live "/projects/:id/track", ProjectLive, :track
       live "/users/settings", UserSettingsLive, :edit
       live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
     end
-
-    get "/", PageController, :home
   end
 
   # ---------------------------------------------------------------------------

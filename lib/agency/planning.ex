@@ -78,6 +78,15 @@ defmodule Agency.Planning do
     Repo.all(from p in Project, where: p.status == :active, order_by: [asc: p.name])
   end
 
+  def list_active_projects_with_owner do
+    Repo.all(
+      from p in Project,
+        where: p.status == :active,
+        order_by: [asc: p.name],
+        preload: [:owner]
+    )
+  end
+
   def get_project!(id), do: Repo.get!(Project, id)
 
   def get_project_with_details!(id) do

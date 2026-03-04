@@ -16,7 +16,7 @@ defmodule Agency.Accounts.User do
     field :seniority, Ecto.Enum,
       values: [:junior, :mid, :senior, :lead, :principal]
 
-    field :daily_rate, :decimal
+    field :hourly_rate, :decimal
     field :app_roles, {:array, :string}, default: []
 
     # Auth fields
@@ -65,12 +65,12 @@ defmodule Agency.Accounts.User do
     |> validate_password(opts)
   end
 
-  @doc "Changeset for profile updates (name, title, discipline, seniority, daily_rate)."
+  @doc "Changeset for profile updates (name, title, discipline, seniority, hourly_rate)."
   def profile_changeset(user, attrs) do
     user
-    |> cast(attrs, [:name, :title, :discipline, :seniority, :daily_rate])
+    |> cast(attrs, [:name, :title, :discipline, :seniority, :hourly_rate])
     |> validate_required([:name, :discipline, :seniority])
-    |> validate_number(:daily_rate, greater_than_or_equal_to: 0)
+    |> validate_number(:hourly_rate, greater_than_or_equal_to: 0)
   end
 
   @valid_roles ~w(admin hr pm)

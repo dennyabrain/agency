@@ -1,6 +1,6 @@
 defmodule Agency.Delivery do
   @moduledoc """
-  Manages the execution layer: Features (sprint-scoped) and Tasks (1-3 days).
+  Manages the execution layer: Features (sprint-scoped) and Tasks (hourly estimates).
 
   Also provides workload and cost analysis queries used for capacity planning
   and tracking scope drift against the project baseline.
@@ -21,6 +21,12 @@ defmodule Agency.Delivery do
         where: f.project_id == ^project_id,
         order_by: [asc: f.priority, asc: f.inserted_at]
     )
+  end
+
+  @doc "Returns features with sprint, team members, and tasks preloaded. Avoids N+1 on project page."
+  def list_features_with_details(project_id) do
+    list_features(project_id)
+    |> Repo.preload([:sprint, team: [team_members: [:user]], tasks: [:assignee]])
   end
 
   def list_features_for_sprint(sprint_id) do
@@ -113,7 +119,7 @@ defmodule Agency.Delivery do
   Each entry includes:
   - user_id, user_name
   - task_count: number of tasks assigned
-  - total_estimated_days: sum of estimated_days across those tasks
+  - total_estimated_hours: sum of estimated_hours across those tasks
   """
   def workload_by_sprint(sprint_id) do
     Repo.all(
@@ -122,20 +128,20 @@ defmodule Agency.Delivery do
         join: u in User, on: u.id == t.assignee_id,
         where: f.sprint_id == ^sprint_id,
         group_by: [u.id, u.name, u.discipline, u.seniority],
-        order_by: [desc: sum(t.estimated_days)],
+        order_by: [desc: sum(t.estimated_hours)],
         select: %{
           user_id: u.id,
           user_name: u.name,
           discipline: u.discipline,
           seniority: u.seniority,
           task_count: count(t.id),
-          total_estimated_days: sum(t.estimated_days)
+          total_estimated_hours: sum(t.estimated_hours)
         }
     )
   end
 
   @doc """
-  Returns task load per user across all active sprints for a project.
+  Returns task load per user across all features for a project.
   Useful for identifying overloaded team members during project planning.
   """
   def workload_by_project(project_id) do
@@ -145,14 +151,14 @@ defmodule Agency.Delivery do
         join: u in User, on: u.id == t.assignee_id,
         where: f.project_id == ^project_id,
         group_by: [u.id, u.name, u.discipline, u.seniority],
-        order_by: [desc: sum(t.estimated_days)],
+        order_by: [desc: sum(t.estimated_hours)],
         select: %{
           user_id: u.id,
           user_name: u.name,
           discipline: u.discipline,
           seniority: u.seniority,
           task_count: count(t.id),
-          total_estimated_days: sum(t.estimated_days)
+          total_estimated_hours: sum(t.estimated_hours)
         }
     )
   end
@@ -176,9 +182,9 @@ defmodule Agency.Delivery do
         join: u in User, on: u.id == t.assignee_id,
         where:
           f.project_id == ^project_id and
-            not is_nil(t.estimated_days) and
-            not is_nil(u.daily_rate),
-        select: sum(fragment("? * ?", t.estimated_days, u.daily_rate))
+            not is_nil(t.estimated_hours) and
+            not is_nil(u.hourly_rate),
+        select: sum(fragment("? * ?", t.estimated_hours, u.hourly_rate))
 
     query =
       if only_baseline do
@@ -197,9 +203,9 @@ defmodule Agency.Delivery do
         join: u in User, on: u.id == t.assignee_id,
         where:
           t.feature_id == ^feature_id and
-            not is_nil(t.estimated_days) and
-            not is_nil(u.daily_rate),
-        select: sum(fragment("? * ?", t.estimated_days, u.daily_rate))
+            not is_nil(t.estimated_hours) and
+            not is_nil(u.hourly_rate),
+        select: sum(fragment("? * ?", t.estimated_hours, u.hourly_rate))
     ) || Decimal.new(0)
   end
 end

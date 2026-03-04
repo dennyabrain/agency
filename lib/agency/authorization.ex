@@ -7,7 +7,7 @@ defmodule Agency.Authorization do
 
   Valid roles:
   - "admin" — full access: user management, all data, all actions
-  - "hr"    — can view and edit salary data (daily_rate)
+  - "hr"    — can view and edit salary data (hourly_rate)
   - "pm"    — can create projects and assign team members
 
   Roles are additive: a user with ["pm", "hr"] can do both.
@@ -36,7 +36,7 @@ defmodule Agency.Authorization do
   @doc "Can invite new users or manage existing accounts."
   def can_manage_users?(%User{} = user), do: has_role?(user, :admin)
 
-  @doc "Can view and edit the daily_rate (salary) of any user."
+  @doc "Can view and edit the hourly_rate (salary) of any user."
   def can_view_salary?(%User{} = user),
     do: has_role?(user, :admin) or has_role?(user, :hr)
 
