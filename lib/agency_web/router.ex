@@ -28,6 +28,9 @@ defmodule AgencyWeb.Router do
       live "/", DashboardLive, :index
       live "/workload", WorkloadLive, :index
       live "/weekly-notes", WeeklyNotesLive, :index
+      live "/sprints", SprintsLive, :index
+      live "/sprints/new", SprintsLive, :new
+      live "/sprints/:id/edit", SprintsLive, :edit
       live "/projects/:id/plan", ProjectLive, :plan
       live "/projects/:id/track", ProjectLive, :track
       live "/users/settings", UserSettingsLive, :edit
