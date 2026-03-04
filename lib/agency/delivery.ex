@@ -42,6 +42,11 @@ defmodule Agency.Delivery do
     |> Repo.preload([:sprint, :resources, team: [team_members: [:user]], tasks: [:assignee, :resources]])
   end
 
+  @doc "Loads all features with sprint and tasks preloaded for the Gantt chart view."
+  def list_all_features_for_gantt do
+    Repo.all(from f in Feature, preload: [:sprint, :tasks])
+  end
+
   def list_features_for_sprint(sprint_id) do
     Repo.all(
       from f in Feature,
