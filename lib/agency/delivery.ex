@@ -22,6 +22,7 @@ defmodule Agency.Delivery do
   alias Agency.Accounts.User
   alias Agency.Delivery.{Feature, Task}
   alias Agency.Planning.ProjectMember
+  alias Agency.Sprints.Sprint
 
   # ---------------------------------------------------------------------------
   # Features
@@ -258,6 +259,58 @@ defmodule Agency.Delivery do
             )
           )
     ) || Decimal.new(0)
+  end
+
+  @doc """
+  Returns estimated hours grouped by team member, month, and project.
+
+  The month anchor is the sprint's `start_date`; falls back to the task's
+  `due_date` if no sprint is assigned. Tasks with neither date are excluded.
+
+  Pass `project_id: id` to scope to a single project. Without it, all
+  projects are included so the caller can aggregate freely.
+
+  Each row is a map with keys:
+    user_id, user_name, discipline, month (%Date{}), project_id, total_hours, task_count
+  """
+  def workload_by_month(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    query =
+      from t in Task,
+        join: f in Feature, on: f.id == t.feature_id,
+        join: u in User, on: u.id == t.assignee_id,
+        left_join: s in Sprint, on: s.id == f.sprint_id,
+        where:
+          not is_nil(t.estimated_hours) and
+            not is_nil(fragment("COALESCE(?, ?)", s.start_date, t.due_date)),
+        group_by: [
+          u.id,
+          u.name,
+          u.discipline,
+          fragment("DATE_TRUNC('month', COALESCE(?, ?))::date", s.start_date, t.due_date),
+          f.project_id
+        ],
+        order_by: [
+          asc: fragment("DATE_TRUNC('month', COALESCE(?, ?))::date", s.start_date, t.due_date),
+          asc: u.name
+        ],
+        select: %{
+          user_id: u.id,
+          user_name: u.name,
+          discipline: u.discipline,
+          month: fragment("DATE_TRUNC('month', COALESCE(?, ?))::date", s.start_date, t.due_date),
+          project_id: f.project_id,
+          total_hours: sum(t.estimated_hours),
+          task_count: count(t.id)
+        }
+
+    query =
+      if project_id,
+        do: where(query, [_t, f], f.project_id == ^project_id),
+        else: query
+
+    Repo.all(query)
   end
 
   # ---------------------------------------------------------------------------
