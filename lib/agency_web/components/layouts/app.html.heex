@@ -1,31 +1,31 @@
-<nav class="bg-white border-b border-zinc-200">
+<nav class="bg-earth-900 border-b border-earth-700">
   <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
     <div class="flex h-14 items-center justify-between">
       <div class="flex items-center gap-6">
-        <.link navigate={~p"/"} class="text-base font-bold tracking-tight text-zinc-900">
+        <.link navigate={~p"/"} class="text-base font-bold tracking-tight text-earth-100">
           Agency
         </.link>
-        <.link navigate={~p"/"} class="text-sm font-medium text-zinc-500 hover:text-zinc-900">
+        <.link navigate={~p"/"} class="text-sm font-medium text-earth-300 hover:text-earth-100 transition-colors">
           Dashboard
         </.link>
-        <.link navigate={~p"/workload"} class="text-sm font-medium text-zinc-500 hover:text-zinc-900">
+        <.link navigate={~p"/workload"} class="text-sm font-medium text-earth-300 hover:text-earth-100 transition-colors">
           Workload
         </.link>
-        <.link navigate={~p"/weekly-notes"} class="text-sm font-medium text-zinc-500 hover:text-zinc-900">
+        <.link navigate={~p"/weekly-notes"} class="text-sm font-medium text-earth-300 hover:text-earth-100 transition-colors">
           Weekly Notes
         </.link>
-        <.link navigate={~p"/sprints"} class="text-sm font-medium text-zinc-500 hover:text-zinc-900">
+        <.link navigate={~p"/sprints"} class="text-sm font-medium text-earth-300 hover:text-earth-100 transition-colors">
           Sprints
         </.link>
       </div>
       <div class="flex items-center gap-4 text-sm">
-        <span :if={@current_user}>
-          <span class="text-zinc-500">{@current_user.name}</span>
+        <span :if={@current_user} class="text-earth-300 text-sm">
+          {@current_user.name}
         </span>
         <.link
           href={~p"/users/log_out"}
           method="delete"
-          class="font-medium text-zinc-500 hover:text-zinc-900"
+          class="text-sm font-medium text-earth-500 hover:text-earth-100 transition-colors"
         >
           Log out
         </.link>

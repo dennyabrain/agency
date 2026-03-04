@@ -15,6 +15,13 @@ module.exports = {
     extend: {
       colors: {
         brand: "#FD4F00",
+        earth: {
+          900: "#313628",
+          700: "#595358",
+          500: "#857f74",
+          300: "#a4ac96",
+          100: "#cadf9e",
+        },
       }
     },
   },
