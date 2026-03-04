@@ -27,6 +27,7 @@ defmodule AgencyWeb.Router do
       on_mount: [{AgencyWeb.UserAuth, :ensure_authenticated}] do
       live "/", DashboardLive, :index
       live "/workload", WorkloadLive, :index
+      live "/weekly-notes", WeeklyNotesLive, :index
       live "/projects/:id/plan", ProjectLive, :plan
       live "/projects/:id/track", ProjectLive, :track
       live "/users/settings", UserSettingsLive, :edit

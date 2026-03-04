@@ -22,10 +22,33 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
+let Hooks = {}
+
+Hooks.CopyMarkdown = {
+  mounted() {
+    this.el.addEventListener("click", () => {
+      const textarea = document.getElementById(this.el.dataset.target)
+      if (!textarea) return
+
+      navigator.clipboard.writeText(textarea.value)
+        .then(() => {
+          const original = this.el.textContent
+          this.el.textContent = "Copied!"
+          setTimeout(() => { this.el.textContent = original }, 2000)
+        })
+        .catch(() => {
+          textarea.select()
+          document.execCommand("copy")
+        })
+    })
+  }
+}
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: {_csrf_token: csrfToken}
+  params: {_csrf_token: csrfToken},
+  hooks: Hooks
 })
 
 // Show progress bar on live navigation and form submits

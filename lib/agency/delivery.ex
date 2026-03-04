@@ -343,6 +343,29 @@ defmodule Agency.Delivery do
   end
 
   # ---------------------------------------------------------------------------
+  # Weekly notes
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Returns all tasks whose `updated_at` falls within the given week.
+
+  `week_start` is a `%Date{}` representing the Monday of the week.
+  Results are preloaded with assignee, resources, and the parent
+  feature (with its own resources and project) — ready for markdown rendering.
+  """
+  def tasks_for_week(%Date{} = week_start) do
+    start_dt = DateTime.new!(week_start, ~T[00:00:00], "Etc/UTC")
+    end_dt = DateTime.new!(Date.add(week_start, 7), ~T[00:00:00], "Etc/UTC")
+
+    Repo.all(
+      from t in Task,
+        where: t.updated_at >= ^start_dt and t.updated_at < ^end_dt,
+        order_by: [asc: t.inserted_at],
+        preload: [:assignee, :resources, feature: [:resources, :project]]
+    )
+  end
+
+  # ---------------------------------------------------------------------------
   # Private helpers
   # ---------------------------------------------------------------------------
 

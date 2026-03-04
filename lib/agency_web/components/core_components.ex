@@ -231,7 +231,7 @@ defmodule AgencyWeb.CoreComponents do
     <button
       type={@type}
       class={[
-        "phx-submit-loading:opacity-75 rounded-lg bg-amber-700 hover:bg-amber-500 py-1 px-2",
+        "phx-submit-loading:opacity-75 rounded-lg bg-red-400 hover:bg-red-200 py-1 px-2",
         "text-sm leading-6 text-white active:text-white/80",
         @class
       ]}
