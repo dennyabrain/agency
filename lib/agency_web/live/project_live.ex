@@ -468,58 +468,57 @@ defmodule AgencyWeb.ProjectLive do
         </div>
       </div>
 
-      <%!-- Features by status --%>
+      <%!-- Features Kanban board --%>
       <div>
         <h2 class="text-base font-semibold text-zinc-900 mb-3">Features</h2>
-        <div class="space-y-6">
-          <%= for {status, group} <- group_by_status(@features) do %>
-            <div>
-              <h3 class="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-2">
-                {Phoenix.Naming.humanize(status)} ({length(group)})
-              </h3>
-              <div class="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
-                <div :for={f <- group} class="px-4 py-3 space-y-2">
-                  <div class="flex items-center justify-between">
-                    <p class="text-sm font-medium text-zinc-900">{f.name}</p>
-                    <div class="flex items-center gap-3">
-                      <span class="text-xs text-zinc-500">
-                        {done_count(f.tasks)}/{length(f.tasks)} tasks done
+        <div class="overflow-x-auto">
+          <div class="grid grid-cols-4 gap-3" style="min-width: 640px;">
+            <%= for {status, label, header_class} <- kanban_columns() do %>
+              <% group = Enum.filter(@features, &(to_string(&1.status) == status)) %>
+              <div class="flex flex-col">
+                <div class="flex items-center justify-between mb-2 px-1">
+                  <h3 class={"text-xs font-semibold uppercase tracking-wide " <> header_class}>
+                    {label}
+                  </h3>
+                  <span class="text-xs text-zinc-400 font-medium">{length(group)}</span>
+                </div>
+                <div class="flex flex-col gap-2 min-h-28 rounded-lg bg-zinc-50 p-2">
+                  <div
+                    :for={f <- group}
+                    class="rounded-md border border-zinc-200 bg-white p-3 shadow-sm space-y-2"
+                  >
+                    <p class="text-sm font-medium text-zinc-900 leading-snug">{f.name}</p>
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-xs text-zinc-400 shrink-0">
+                        {done_count(f.tasks)}/{length(f.tasks)} done
                       </span>
                       <select
                         phx-change="update_feature_status"
                         name="status"
-                        data-id={f.id}
                         phx-value-id={f.id}
-                        class="text-xs rounded border-zinc-300 py-0.5"
+                        class="text-xs rounded border-zinc-300 py-0.5 min-w-0"
                       >
-                        <option :for={s <- feature_statuses()} value={s} selected={s == to_string(f.status)}>
+                        <option
+                          :for={s <- feature_statuses()}
+                          value={s}
+                          selected={s == to_string(f.status)}
+                        >
                           {Phoenix.Naming.humanize(s)}
                         </option>
                       </select>
                     </div>
+                    <p :if={f.sprint} class="text-xs text-zinc-400">Sprint {f.sprint.number}</p>
                   </div>
-                  <div :if={f.tasks != []} class="pl-4 space-y-1">
-                    <div :for={t <- f.tasks} class="flex items-center justify-between text-xs">
-                      <span class="text-zinc-700">{t.name}</span>
-                      <div class="flex items-center gap-2">
-                        <span :if={t.assignee} class="text-zinc-400">{t.assignee.name}</span>
-                        <select
-                          phx-change="update_task_status"
-                          name="status"
-                          phx-value-id={t.id}
-                          class="rounded border-zinc-300 py-0.5 text-xs"
-                        >
-                          <option :for={s <- task_statuses()} value={s} selected={s == to_string(t.status)}>
-                            {Phoenix.Naming.humanize(s)}
-                          </option>
-                        </select>
-                      </div>
-                    </div>
+                  <div
+                    :if={group == []}
+                    class="flex-1 rounded-md border border-dashed border-zinc-200 py-6 text-center text-xs text-zinc-300"
+                  >
+                    Empty
                   </div>
                 </div>
               </div>
-            </div>
-          <% end %>
+            <% end %>
+          </div>
         </div>
       </div>
 
@@ -574,12 +573,13 @@ defmodule AgencyWeb.ProjectLive do
   defp format_cost(%Decimal{} = d), do: "$#{Decimal.round(d, 0)}"
   defp format_cost(0), do: "$0"
 
-  defp group_by_status(features) do
-    order = [:in_progress, :backlog, :completed, :cancelled]
-
-    features
-    |> Enum.group_by(&to_string(&1.status))
-    |> Enum.sort_by(fn {s, _} -> Enum.find_index(order, &(to_string(&1) == s)) || 99 end)
+  defp kanban_columns do
+    [
+      {"backlog", "Backlog", "text-zinc-500"},
+      {"in_progress", "In Progress", "text-blue-600"},
+      {"completed", "Completed", "text-emerald-600"},
+      {"cancelled", "Cancelled", "text-red-500"}
+    ]
   end
 
   defp done_count(tasks), do: Enum.count(tasks, &(&1.status == :done))
