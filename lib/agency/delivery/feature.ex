@@ -22,6 +22,7 @@ defmodule Agency.Delivery.Feature do
     belongs_to :team, Agency.Teams.Team
 
     has_many :tasks, Agency.Delivery.Task
+    has_many :resources, Agency.Delivery.Resource
 
     timestamps(type: :utc_datetime)
   end

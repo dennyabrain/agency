@@ -20,6 +20,8 @@ defmodule Agency.Delivery.Task do
     belongs_to :feature, Agency.Delivery.Feature
     belongs_to :assignee, Agency.Accounts.User
 
+    has_many :resources, Agency.Delivery.Resource
+
     timestamps(type: :utc_datetime)
   end
 

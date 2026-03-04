@@ -39,7 +39,7 @@ defmodule Agency.Delivery do
   @doc "Returns features with sprint, team members, and tasks preloaded. Avoids N+1 on project page."
   def list_features_with_details(project_id) do
     list_features(project_id)
-    |> Repo.preload([:sprint, team: [team_members: [:user]], tasks: [:assignee]])
+    |> Repo.preload([:sprint, :resources, team: [team_members: [:user]], tasks: [:assignee, :resources]])
   end
 
   def list_features_for_sprint(sprint_id) do
@@ -311,6 +311,35 @@ defmodule Agency.Delivery do
         else: query
 
     Repo.all(query)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Resources
+  # ---------------------------------------------------------------------------
+
+  def list_resources_for_feature(feature_id) do
+    alias Agency.Delivery.Resource
+    Repo.all(from r in Resource, where: r.feature_id == ^feature_id, order_by: [asc: r.inserted_at])
+  end
+
+  def list_resources_for_task(task_id) do
+    alias Agency.Delivery.Resource
+    Repo.all(from r in Resource, where: r.task_id == ^task_id, order_by: [asc: r.inserted_at])
+  end
+
+  def create_resource(attrs) do
+    alias Agency.Delivery.Resource
+    %Resource{}
+    |> Resource.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def delete_resource(resource_id) do
+    alias Agency.Delivery.Resource
+    case Repo.get(Resource, resource_id) do
+      nil -> {:error, :not_found}
+      resource -> Repo.delete(resource)
+    end
   end
 
   # ---------------------------------------------------------------------------
