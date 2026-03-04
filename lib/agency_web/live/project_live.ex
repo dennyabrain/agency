@@ -390,6 +390,7 @@ defmodule AgencyWeb.ProjectLive do
         project={@project}
         all_users={@all_users}
         can_assign={@can_assign}
+        can_view_salary={@can_view_salary}
       />
 
       <%!-- Cost summary --%>

@@ -4,12 +4,24 @@ defmodule Agency.Delivery do
 
   Also provides workload and cost analysis queries used for capacity planning
   and tracking scope drift against the project baseline.
+
+  ## Rate resolution
+
+  Task costs use a three-tier rate lookup (most specific wins):
+
+    1. `task.rate_snapshot`     — rate captured at assignment time (immutable history)
+    2. `project_member.billing_rate` — project-specific override (e.g. negotiated rate)
+    3. `user.hourly_rate`       — person's current default rate
+
+  The snapshot is written automatically by `create_task/1` and `update_task/2`
+  whenever `assignee_id` is set or changed.
   """
 
   import Ecto.Query
   alias Agency.Repo
   alias Agency.Accounts.User
   alias Agency.Delivery.{Feature, Task}
+  alias Agency.Planning.ProjectMember
 
   # ---------------------------------------------------------------------------
   # Features
@@ -93,16 +105,41 @@ defmodule Agency.Delivery do
 
   def get_task!(id), do: Repo.get!(Task, id)
 
+  @doc """
+  Creates a task and automatically snapshots the effective rate if an assignee is set.
+  """
   def create_task(attrs \\ %{}) do
-    %Task{}
-    |> Task.changeset(attrs)
-    |> Repo.insert()
+    changeset = Task.changeset(%Task{}, attrs)
+
+    changeset =
+      with assignee_id when not is_nil(assignee_id) <- Ecto.Changeset.get_change(changeset, :assignee_id),
+           feature_id when not is_nil(feature_id) <- Ecto.Changeset.get_change(changeset, :feature_id),
+           project_id when not is_nil(project_id) <- feature_project_id(feature_id),
+           rate when not is_nil(rate) <- effective_rate(assignee_id, project_id) do
+        Ecto.Changeset.put_change(changeset, :rate_snapshot, rate)
+      else
+        _ -> changeset
+      end
+
+    Repo.insert(changeset)
   end
 
+  @doc """
+  Updates a task. Re-snapshots the rate if `assignee_id` changes.
+  """
   def update_task(%Task{} = task, attrs) do
-    task
-    |> Task.changeset(attrs)
-    |> Repo.update()
+    changeset = Task.changeset(task, attrs)
+
+    changeset =
+      with assignee_id when not is_nil(assignee_id) <- Ecto.Changeset.get_change(changeset, :assignee_id),
+           project_id when not is_nil(project_id) <- feature_project_id(task.feature_id),
+           rate when not is_nil(rate) <- effective_rate(assignee_id, project_id) do
+        Ecto.Changeset.put_change(changeset, :rate_snapshot, rate)
+      else
+        _ -> changeset
+      end
+
+    Repo.update(changeset)
   end
 
   def delete_task(%Task{} = task), do: Repo.delete(task)
@@ -170,6 +207,8 @@ defmodule Agency.Delivery do
   @doc """
   Estimates the total cost of a project.
 
+  Rate resolution per task: rate_snapshot → project billing_rate → user hourly_rate.
+
   Pass `only_baseline: true` to get the baseline (planned) cost only,
   which you can compare to the full cost to measure scope drift.
   """
@@ -180,18 +219,21 @@ defmodule Agency.Delivery do
       from t in Task,
         join: f in Feature, on: f.id == t.feature_id,
         join: u in User, on: u.id == t.assignee_id,
-        where:
-          f.project_id == ^project_id and
-            not is_nil(t.estimated_hours) and
-            not is_nil(u.hourly_rate),
-        select: sum(fragment("? * ?", t.estimated_hours, u.hourly_rate))
+        left_join: pm in ProjectMember,
+          on: pm.project_id == f.project_id and pm.user_id == t.assignee_id,
+        where: f.project_id == ^project_id and not is_nil(t.estimated_hours),
+        select:
+          sum(
+            fragment(
+              "? * COALESCE(?, ?, ?)",
+              t.estimated_hours,
+              t.rate_snapshot,
+              pm.billing_rate,
+              u.hourly_rate
+            )
+          )
 
-    query =
-      if only_baseline do
-        where(query, [_t, f], f.is_baseline == true)
-      else
-        query
-      end
+    query = if only_baseline, do: where(query, [_t, f], f.is_baseline == true), else: query
 
     Repo.one(query) || Decimal.new(0)
   end
@@ -200,12 +242,38 @@ defmodule Agency.Delivery do
   def estimate_feature_cost(feature_id) do
     Repo.one(
       from t in Task,
+        join: f in Feature, on: f.id == t.feature_id,
         join: u in User, on: u.id == t.assignee_id,
-        where:
-          t.feature_id == ^feature_id and
-            not is_nil(t.estimated_hours) and
-            not is_nil(u.hourly_rate),
-        select: sum(fragment("? * ?", t.estimated_hours, u.hourly_rate))
+        left_join: pm in ProjectMember,
+          on: pm.project_id == f.project_id and pm.user_id == t.assignee_id,
+        where: t.feature_id == ^feature_id and not is_nil(t.estimated_hours),
+        select:
+          sum(
+            fragment(
+              "? * COALESCE(?, ?, ?)",
+              t.estimated_hours,
+              t.rate_snapshot,
+              pm.billing_rate,
+              u.hourly_rate
+            )
+          )
     ) || Decimal.new(0)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Private helpers
+  # ---------------------------------------------------------------------------
+
+  defp feature_project_id(feature_id) do
+    Repo.one(from f in Feature, where: f.id == ^feature_id, select: f.project_id)
+  end
+
+  defp effective_rate(user_id, project_id) do
+    pm = Repo.get_by(ProjectMember, user_id: user_id, project_id: project_id)
+
+    cond do
+      pm && pm.billing_rate -> pm.billing_rate
+      true -> Repo.one(from u in User, where: u.id == ^user_id, select: u.hourly_rate)
+    end
   end
 end

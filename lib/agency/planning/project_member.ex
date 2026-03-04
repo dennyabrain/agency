@@ -7,6 +7,7 @@ defmodule Agency.Planning.ProjectMember do
 
   schema "project_members" do
     field :role, Ecto.Enum, values: [:owner, :contributor, :stakeholder], default: :contributor
+    field :billing_rate, :decimal
 
     belongs_to :project, Agency.Planning.Project
     belongs_to :user, Agency.Accounts.User
@@ -16,8 +17,9 @@ defmodule Agency.Planning.ProjectMember do
 
   def changeset(project_member, attrs) do
     project_member
-    |> cast(attrs, [:role, :project_id, :user_id])
+    |> cast(attrs, [:role, :billing_rate, :project_id, :user_id])
     |> validate_required([:role, :project_id, :user_id])
+    |> validate_number(:billing_rate, greater_than_or_equal_to: 0)
     |> foreign_key_constraint(:project_id)
     |> foreign_key_constraint(:user_id)
     |> unique_constraint([:project_id, :user_id], message: "user is already a member of this project")

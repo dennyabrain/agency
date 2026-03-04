@@ -14,6 +14,7 @@ defmodule Agency.Delivery.Task do
       default: :todo
 
     field :estimated_hours, :integer
+    field :rate_snapshot, :decimal
     field :due_date, :date
 
     belongs_to :feature, Agency.Delivery.Feature
