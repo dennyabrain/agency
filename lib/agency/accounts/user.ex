@@ -17,6 +17,11 @@ defmodule Agency.Accounts.User do
       values: [:junior, :mid, :senior, :lead, :principal]
 
     field :hourly_rate, :decimal
+
+    field :employment_type, Ecto.Enum,
+      values: [:employee, :contractor],
+      default: :employee
+
     field :app_roles, {:array, :string}, default: []
 
     # Auth fields
@@ -87,7 +92,7 @@ defmodule Agency.Accounts.User do
   @doc "Changeset for admin-initiated user creation. Includes all profile fields plus password."
   def admin_create_changeset(user, attrs, opts \\ []) do
     user
-    |> cast(attrs, [:email, :name, :title, :discipline, :seniority, :hourly_rate, :app_roles, :password])
+    |> cast(attrs, [:email, :name, :title, :discipline, :seniority, :hourly_rate, :employment_type, :app_roles, :password])
     |> validate_required([:email, :name, :discipline, :seniority])
     |> validate_email(opts)
     |> validate_password(opts)
@@ -100,7 +105,7 @@ defmodule Agency.Accounts.User do
   @doc "Changeset for admin-initiated user edits. Covers all editable fields without requiring current password."
   def admin_changeset(user, attrs) do
     user
-    |> cast(attrs, [:email, :name, :title, :discipline, :seniority, :hourly_rate, :app_roles])
+    |> cast(attrs, [:email, :name, :title, :discipline, :seniority, :hourly_rate, :employment_type, :app_roles])
     |> validate_required([:email, :name, :discipline, :seniority])
     |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
     |> validate_length(:email, max: 160)

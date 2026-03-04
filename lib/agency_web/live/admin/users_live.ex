@@ -155,6 +155,26 @@ defmodule AgencyWeb.Admin.UsersLive do
   defp coerce_roles(params), do: Map.put(params, "app_roles", [])
 
   # ---------------------------------------------------------------------------
+  # Components
+  # ---------------------------------------------------------------------------
+
+  defp employment_badge(%{type: :contractor} = assigns) do
+    ~H"""
+    <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+      Contractor
+    </span>
+    """
+  end
+
+  defp employment_badge(assigns) do
+    ~H"""
+    <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+      Employee
+    </span>
+    """
+  end
+
+  # ---------------------------------------------------------------------------
   # Render
   # ---------------------------------------------------------------------------
 
@@ -172,6 +192,7 @@ defmodule AgencyWeb.Admin.UsersLive do
       <.table id="admin-users" rows={@users}>
         <:col :let={u} label="Name">{u.name}</:col>
         <:col :let={u} label="Email">{u.email}</:col>
+        <:col :let={u} label="Type"><.employment_badge type={u.employment_type} /></:col>
         <:col :let={u} label="Title">{u.title || "—"}</:col>
         <:col :let={u} label="Discipline">{Phoenix.Naming.humanize(u.discipline)}</:col>
         <:col :let={u} label="Seniority">{Phoenix.Naming.humanize(u.seniority)}</:col>
@@ -234,13 +255,22 @@ defmodule AgencyWeb.Admin.UsersLive do
             required
           />
 
-          <.input
-            field={@form[:hourly_rate]}
-            type="number"
-            label="Hourly rate ($)"
-            step="0.01"
-            min="0"
-          />
+          <div class="grid grid-cols-2 gap-4">
+            <.input
+              field={@form[:hourly_rate]}
+              type="number"
+              label="Hourly rate ($)"
+              step="0.01"
+              min="0"
+            />
+            <.input
+              field={@form[:employment_type]}
+              type="select"
+              label="Employment type"
+              options={[{"Employee", :employee}, {"Contractor", :contractor}]}
+              required
+            />
+          </div>
 
           <fieldset>
             <legend class="block text-sm font-semibold leading-6 text-zinc-800">Roles</legend>
@@ -330,13 +360,22 @@ defmodule AgencyWeb.Admin.UsersLive do
             required
           />
 
-          <.input
-            field={@create_form[:hourly_rate]}
-            type="number"
-            label="Hourly rate ($)"
-            step="0.01"
-            min="0"
-          />
+          <div class="grid grid-cols-2 gap-4">
+            <.input
+              field={@create_form[:hourly_rate]}
+              type="number"
+              label="Hourly rate ($)"
+              step="0.01"
+              min="0"
+            />
+            <.input
+              field={@create_form[:employment_type]}
+              type="select"
+              label="Employment type"
+              options={[{"Employee", :employee}, {"Contractor", :contractor}]}
+              required
+            />
+          </div>
 
           <.input field={@create_form[:password]} type="password" label="Password" required />
 
