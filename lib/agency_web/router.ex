@@ -36,6 +36,11 @@ defmodule AgencyWeb.Router do
       live "/users/settings", UserSettingsLive, :edit
       live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
     end
+
+    live_session :admin,
+      on_mount: [{AgencyWeb.UserAuth, :ensure_admin}] do
+      live "/admin/users", Admin.UsersLive, :index
+    end
   end
 
   # ---------------------------------------------------------------------------

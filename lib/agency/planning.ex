@@ -70,6 +70,14 @@ defmodule Agency.Planning do
     Repo.all(from p in Project, order_by: [asc: p.name])
   end
 
+  def list_projects_with_owner do
+    Repo.all(
+      from p in Project,
+        order_by: [asc: p.name],
+        preload: [:owner]
+    )
+  end
+
   def list_projects_for_goal(goal_id) do
     Repo.all(from p in Project, where: p.goal_id == ^goal_id, order_by: [asc: p.name])
   end

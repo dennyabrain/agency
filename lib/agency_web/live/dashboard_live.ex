@@ -6,7 +6,7 @@ defmodule AgencyWeb.DashboardLive do
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
 
-    projects = Planning.list_active_projects_with_owner()
+    projects = Planning.list_projects_with_owner()
 
     projects_with_cost =
       if Authorization.can_view_project_cost?(user) do

@@ -23,6 +23,34 @@ defmodule Agency.Accounts do
   # Role management (admin only — enforce in the caller)
   # ---------------------------------------------------------------------------
 
+  # ---------------------------------------------------------------------------
+  # Admin user management
+  # ---------------------------------------------------------------------------
+
+  def admin_create_user(attrs) do
+    %User{}
+    |> User.admin_create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def change_user_new(attrs \\ %{}) do
+    User.admin_create_changeset(%User{}, attrs, hash_password: false, validate_email: false)
+  end
+
+  def admin_update_user(%User{} = user, attrs) do
+    user
+    |> User.admin_changeset(attrs)
+    |> Repo.update()
+  end
+
+  def change_user_admin(%User{} = user, attrs \\ %{}) do
+    User.admin_changeset(user, attrs)
+  end
+
+  def delete_user(%User{} = user) do
+    Repo.delete(user)
+  end
+
   @doc "Replaces a user's app_roles. Pass an empty list to remove all roles."
   def update_user_roles(%User{} = user, roles) when is_list(roles) do
     user

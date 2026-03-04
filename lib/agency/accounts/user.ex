@@ -84,6 +84,34 @@ defmodule Agency.Accounts.User do
     )
   end
 
+  @doc "Changeset for admin-initiated user creation. Includes all profile fields plus password."
+  def admin_create_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:email, :name, :title, :discipline, :seniority, :hourly_rate, :app_roles, :password])
+    |> validate_required([:email, :name, :discipline, :seniority])
+    |> validate_email(opts)
+    |> validate_password(opts)
+    |> validate_number(:hourly_rate, greater_than_or_equal_to: 0)
+    |> validate_subset(:app_roles, @valid_roles,
+      message: "contains an invalid role. Valid roles: #{Enum.join(@valid_roles, ", ")}"
+    )
+  end
+
+  @doc "Changeset for admin-initiated user edits. Covers all editable fields without requiring current password."
+  def admin_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:email, :name, :title, :discipline, :seniority, :hourly_rate, :app_roles])
+    |> validate_required([:email, :name, :discipline, :seniority])
+    |> validate_format(:email, ~r/^[^\s]+@[^\s]+$/, message: "must have the @ sign and no spaces")
+    |> validate_length(:email, max: 160)
+    |> unsafe_validate_unique(:email, Agency.Repo)
+    |> unique_constraint(:email)
+    |> validate_number(:hourly_rate, greater_than_or_equal_to: 0)
+    |> validate_subset(:app_roles, @valid_roles,
+      message: "contains an invalid role. Valid roles: #{Enum.join(@valid_roles, ", ")}"
+    )
+  end
+
   @doc "Marks the user's email as confirmed."
   def confirm_changeset(user) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
