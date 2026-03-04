@@ -469,9 +469,10 @@ defmodule AgencyWeb.SprintsLive do
                     style={"left: #{@chart.today_pct}%"}
                     class="absolute inset-y-0 w-px bg-red-400/40 z-10"
                   />
-                  <div
+                  <.link
+                    navigate={~p"/features/#{feat.feature.id}"}
                     style={"top: 8px; left: #{feat.left_pct}%; width: max(#{feat.width_pct}%, 40px);"}
-                    class={"absolute h-7 rounded-md flex items-center overflow-hidden select-none #{feature_bar_bg(feat.feature.status)}"}
+                    class={"absolute block h-7 rounded-md flex items-center overflow-hidden hover:brightness-90 transition-[filter] #{feature_bar_bg(feat.feature.status)}"}
                   >
                     <div class="flex items-center gap-2 px-2 w-full overflow-hidden">
                       <span class="text-xs font-medium text-white truncate min-w-0 flex-1">
@@ -484,7 +485,7 @@ defmodule AgencyWeb.SprintsLive do
                         {feat.done_count}/{feat.task_count}
                       </span>
                     </div>
-                  </div>
+                  </.link>
                 </div>
               </div>
 

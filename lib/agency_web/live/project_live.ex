@@ -487,7 +487,12 @@ defmodule AgencyWeb.ProjectLive do
                     :for={f <- group}
                     class="rounded-md border border-zinc-200 bg-white p-3 shadow-sm space-y-2"
                   >
-                    <p class="text-sm font-medium text-zinc-900 leading-snug">{f.name}</p>
+                    <.link
+                      navigate={~p"/features/#{f.id}"}
+                      class="text-sm font-medium text-zinc-900 hover:underline leading-snug"
+                    >
+                      {f.name}
+                    </.link>
                     <div class="flex items-center justify-between gap-2">
                       <span class="text-xs text-zinc-400 shrink-0">
                         {done_count(f.tasks)}/{length(f.tasks)} done

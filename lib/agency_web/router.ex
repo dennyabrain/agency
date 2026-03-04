@@ -33,6 +33,7 @@ defmodule AgencyWeb.Router do
       live "/sprints/:id/edit", SprintsLive, :edit
       live "/projects/:id/plan", ProjectLive, :plan
       live "/projects/:id/track", ProjectLive, :track
+      live "/features/:id", FeatureLive, :show
       live "/users/settings", UserSettingsLive, :edit
       live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
     end

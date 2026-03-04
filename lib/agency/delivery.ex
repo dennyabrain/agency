@@ -77,7 +77,13 @@ defmodule Agency.Delivery do
 
   def get_feature_with_details!(id) do
     Repo.get!(Feature, id)
-    |> Repo.preload([:sprint, :project, team: [team_members: [:user]], tasks: [:assignee]])
+    |> Repo.preload([
+      :sprint,
+      :project,
+      :resources,
+      team: [team_members: [:user]],
+      tasks: [:assignee, :resources]
+    ])
   end
 
   def create_feature(attrs \\ %{}) do
