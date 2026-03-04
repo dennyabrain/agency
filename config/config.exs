@@ -9,7 +9,7 @@ import Config
 
 config :agency,
   ecto_repos: [Agency.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime, binary_id: true]
 
 # Configures the endpoint
 config :agency, AgencyWeb.Endpoint,

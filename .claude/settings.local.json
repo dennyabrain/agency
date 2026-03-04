@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(elixir --version)",
+      "Bash(erl -eval 'ssl:start\\(\\), init:stop\\(\\)')"
+    ]
+  }
+}
