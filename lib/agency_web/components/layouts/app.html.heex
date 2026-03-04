@@ -19,6 +19,13 @@
         </.link>
       </div>
       <div class="flex items-center gap-4 text-sm">
+        <.link
+          :if={@current_user && Agency.Authorization.has_role?(@current_user, :admin)}
+          navigate={~p"/admin/users"}
+          class="text-sm font-medium text-earth-300 hover:text-earth-100 transition-colors"
+        >
+          Users
+        </.link>
         <span :if={@current_user} class="text-earth-300 text-sm">
           {@current_user.name}
         </span>

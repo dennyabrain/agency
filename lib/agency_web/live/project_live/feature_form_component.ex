@@ -13,8 +13,9 @@ defmodule AgencyWeb.ProjectLive.FeatureFormComponent do
 
     # Only rebuild the form when the feature changes, not on every parent render.
     # This prevents in-progress edits from being discarded when the parent re-renders.
+    # Guard against first mount (no :form yet) so new features (id=nil) don't skip init.
     socket =
-      if prev_id != feature.id do
+      if is_nil(socket.assigns[:form]) or prev_id != feature.id do
         assign_form(socket, Delivery.change_feature(feature))
       else
         socket
