@@ -83,7 +83,7 @@ defmodule AgencyWeb.WeeklyNotesLive do
             # Feature assignees = unique assignees across its tasks
             assignees =
               feature_tasks
-              |> Enum.flat_map(fn t -> if t.assignee, do: [t.assignee.name], else: [] end)
+              |> Enum.flat_map(fn t -> Enum.map(t.task_assignees, & &1.assignee.name) end)
               |> Enum.uniq()
               |> Enum.sort()
 
@@ -92,10 +92,15 @@ defmodule AgencyWeb.WeeklyNotesLive do
             task_lines =
               Enum.map(feature_tasks, fn task ->
                 assignee_str =
-                  if task.assignee, do: " _(#{task.assignee.name})_", else: ""
+                  case task.task_assignees do
+                    [] -> ""
+                    tas -> " _(#{Enum.map_join(tas, ", ", & &1.assignee.name)})_"
+                  end
+
+                total_hours = Enum.sum(Enum.map(task.task_assignees, & &1.estimated_hours))
 
                 hours_str =
-                  if task.estimated_hours, do: " · #{task.estimated_hours}h", else: ""
+                  if total_hours > 0, do: " · #{total_hours}h", else: ""
 
                 status_badge = status_icon(task.status)
                 task_resources = format_resources(task.resources)

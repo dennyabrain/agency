@@ -13,28 +13,21 @@ defmodule Agency.Delivery.Task do
       values: [:todo, :in_progress, :in_review, :done, :blocked],
       default: :todo
 
-    field :estimated_hours, :integer
-    field :rate_snapshot, :decimal
     field :due_date, :date
 
     belongs_to :feature, Agency.Delivery.Feature
-    belongs_to :assignee, Agency.Accounts.User
 
+    has_many :task_assignees, Agency.Delivery.TaskAssignee
+    has_many :assignees, through: [:task_assignees, :assignee]
     has_many :resources, Agency.Delivery.Resource
 
     timestamps(type: :utc_datetime)
   end
 
-  @valid_hours [1, 2, 3, 4, 6, 8, 12, 16, 24]
-
   def changeset(task, attrs) do
     task
-    |> cast(attrs, [:name, :description, :status, :estimated_hours, :due_date, :feature_id, :assignee_id])
+    |> cast(attrs, [:name, :description, :status, :due_date, :feature_id])
     |> validate_required([:name, :status, :feature_id])
-    |> validate_inclusion(:estimated_hours, @valid_hours,
-      message: "must be one of #{Enum.join(@valid_hours, ", ")} hours"
-    )
     |> foreign_key_constraint(:feature_id)
-    |> foreign_key_constraint(:assignee_id)
   end
 end

@@ -228,15 +228,17 @@ defmodule AgencyWeb.ProjectLive.FeatureComponent do
             <div :for={task <- @feature.tasks} class="flex items-center justify-between px-3 py-2">
               <div class="flex items-center gap-2 min-w-0">
                 <span class="text-sm text-zinc-800 truncate">{task.name}</span>
-                <span :if={task.estimated_hours} class="text-xs text-zinc-400">
-                  {task.estimated_hours}h
+                <span :if={task.task_assignees != []} class="text-xs text-zinc-400">
+                  {Enum.sum(Enum.map(task.task_assignees, & &1.estimated_hours))}h
                 </span>
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
                 <span :if={length(task.resources) > 0} class="text-xs text-zinc-400">
                   {length(task.resources)} link{if length(task.resources) != 1, do: "s"}
                 </span>
-                <span :if={task.assignee} class="text-xs text-zinc-400">{task.assignee.name}</span>
+                <span :if={task.task_assignees != []} class="text-xs text-zinc-400">
+                  {Enum.map_join(task.task_assignees, ", ", & &1.assignee.name)}
+                </span>
                 <span class={[
                   "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
                   task_status_color(task.status)

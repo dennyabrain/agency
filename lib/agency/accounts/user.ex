@@ -34,7 +34,8 @@ defmodule Agency.Accounts.User do
     has_many :projects, through: [:project_memberships, :project]
     has_many :team_memberships, Agency.Teams.TeamMember
     has_many :teams, through: [:team_memberships, :team]
-    has_many :assigned_tasks, Agency.Delivery.Task, foreign_key: :assignee_id
+    has_many :task_assignments, Agency.Delivery.TaskAssignee, foreign_key: :user_id
+    has_many :assigned_tasks, through: [:task_assignments, :task]
     has_many :owned_projects, Agency.Planning.Project, foreign_key: :owner_id
     has_many :owned_goals, Agency.Planning.Goal, foreign_key: :owner_id
 

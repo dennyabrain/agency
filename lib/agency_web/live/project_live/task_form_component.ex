@@ -4,17 +4,21 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
   alias Agency.Delivery
   alias Agency.Delivery.Task
 
+  @valid_hours [1, 2, 3, 4, 6, 8, 12, 16, 24]
+
   @impl true
   def update(%{task: task} = assigns, socket) do
     task = task || %Task{}
     changeset = Delivery.change_task(task)
     resources = if task.id, do: Map.get(task, :resources, []), else: []
+    task_assignees = if task.id, do: Delivery.list_task_assignees(task.id), else: []
 
     {:ok,
      socket
      |> assign(assigns)
      |> assign(:task, task)
      |> assign(:task_resources, resources)
+     |> assign(:task_assignees, task_assignees)
      |> assign_form(changeset)}
   end
 
@@ -30,6 +34,36 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
 
   def handle_event("save", %{"task" => params}, socket) do
     save_task(socket, socket.assigns.task, params)
+  end
+
+  def handle_event("add_assignee", %{"user_id" => user_id, "estimated_hours" => hours}, socket)
+      when user_id != "" and hours != "" do
+    attrs = %{
+      "user_id" => user_id,
+      "estimated_hours" => String.to_integer(hours)
+    }
+
+    case Delivery.add_task_assignee(socket.assigns.task, attrs) do
+      {:ok, _} ->
+        task_assignees = Delivery.list_task_assignees(socket.assigns.task.id)
+        {:noreply, assign(socket, :task_assignees, task_assignees)}
+
+      {:error, changeset} ->
+        msg =
+          changeset.errors
+          |> Enum.map(fn {field, {msg, _}} -> "#{field}: #{msg}" end)
+          |> Enum.join(", ")
+
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("add_assignee", _params, socket), do: {:noreply, socket}
+
+  def handle_event("remove_assignee", %{"id" => id}, socket) do
+    Delivery.remove_task_assignee(id)
+    updated = Enum.reject(socket.assigns.task_assignees, &(&1.id == id))
+    {:noreply, assign(socket, :task_assignees, updated)}
   end
 
   def handle_event("add_resource", %{"url" => url} = params, socket) when url != "" do
@@ -92,6 +126,21 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
   defp nilify(""), do: nil
   defp nilify(s), do: s
 
+  defp hours_options do
+    Enum.map(@valid_hours, fn h ->
+      label =
+        case h do
+          1 -> "1 hour"
+          8 -> "8 hours (1 day)"
+          16 -> "16 hours (2 days)"
+          24 -> "24 hours (3 days)"
+          n -> "#{n} hours"
+        end
+
+      {label, h}
+    end)
+  end
+
   defp kind_label(:github), do: "GitHub"
   defp kind_label(:gdoc), do: "Google Doc"
   defp kind_label(:gsheet), do: "Google Sheet"
@@ -142,33 +191,64 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
               {"Blocked", :blocked}
             ]}
           />
-          <.input
-            field={@form[:estimated_hours]}
-            type="select"
-            label="Estimated duration"
-            options={[
-              {"1 hour", 1},
-              {"2 hours", 2},
-              {"3 hours", 3},
-              {"4 hours", 4},
-              {"6 hours", 6},
-              {"8 hours (1 day)", 8},
-              {"12 hours", 12},
-              {"16 hours (2 days)", 16},
-              {"24 hours (3 days)", 24}
-            ]}
-            prompt="Select duration"
-          />
-        </div>
-        <div class="grid grid-cols-2 gap-4">
           <.input field={@form[:due_date]} type="date" label="Due date" />
-          <.input
-            field={@form[:assignee_id]}
-            type="select"
-            label="Assignee"
-            options={Enum.map(@all_users, &{&1.name, &1.id})}
-            prompt="Unassigned"
-          />
+        </div>
+
+        <%!-- Assignees — only shown when editing an existing task --%>
+        <div :if={@task.id} class="space-y-2">
+          <p class="text-sm font-semibold leading-6 text-zinc-800">Assignees</p>
+
+          <div :if={@task_assignees != []} class="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
+            <div
+              :for={ta <- @task_assignees}
+              class="flex items-center justify-between px-3 py-2 text-sm"
+            >
+              <span class="text-zinc-800">{ta.assignee.name}</span>
+              <div class="flex items-center gap-3">
+                <span class="text-zinc-500">{ta.estimated_hours}h</span>
+                <button
+                  phx-click="remove_assignee"
+                  phx-value-id={ta.id}
+                  phx-target={@myself}
+                  type="button"
+                  class="text-zinc-300 hover:text-red-500 leading-none"
+                  aria-label="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <form
+            phx-submit="add_assignee"
+            phx-target={@myself}
+            id={"task-assignee-form-#{@task.id}"}
+            class="flex items-center gap-2 flex-wrap"
+          >
+            <select
+              name="user_id"
+              class="flex-1 min-w-40 text-sm rounded border-zinc-300 py-1"
+              required
+            >
+              <option value="">Select person…</option>
+              <%= for user <- @all_users do %>
+                <option value={user.id}>{user.name}</option>
+              <% end %>
+            </select>
+            <select name="estimated_hours" class="text-sm rounded border-zinc-300 py-1" required>
+              <option value="">Hours…</option>
+              <%= for {label, value} <- hours_options() do %>
+                <option value={value}>{label}</option>
+              <% end %>
+            </select>
+            <button
+              type="submit"
+              class="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+            >
+              Add
+            </button>
+          </form>
         </div>
 
         <%!-- Resources — only shown when editing an existing task --%>
