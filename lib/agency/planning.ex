@@ -130,8 +130,10 @@ defmodule Agency.Planning do
       from(f in Agency.Delivery.Feature, where: f.project_id == ^project.id)
       |> Repo.update_all(set: [is_baseline: true])
 
+      cost = Agency.Delivery.estimate_project_cost(project.id)
+
       project
-      |> Project.changeset(%{baseline_locked_at: now})
+      |> Project.changeset(%{baseline_locked_at: now, baseline_cost: cost})
       |> Repo.update!()
     end)
   end

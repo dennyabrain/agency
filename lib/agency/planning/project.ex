@@ -17,6 +17,7 @@ defmodule Agency.Planning.Project do
     field :start_date, :date
     field :end_date, :date
     field :baseline_locked_at, :utc_datetime
+    field :baseline_cost, :decimal
 
     belongs_to :goal, Agency.Planning.Goal
     belongs_to :owner, Agency.Accounts.User
@@ -34,7 +35,7 @@ defmodule Agency.Planning.Project do
     project
     |> cast(attrs, [
       :name, :description, :objective, :status,
-      :start_date, :end_date, :baseline_locked_at,
+      :start_date, :end_date, :baseline_locked_at, :baseline_cost,
       :goal_id, :owner_id
     ])
     |> validate_required([:name, :status])

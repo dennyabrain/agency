@@ -59,7 +59,7 @@ defmodule AgencyWeb.ProjectLive do
 
     baseline_cost =
       if socket.assigns.can_view_cost && project.baseline_locked_at do
-        Delivery.estimate_project_cost(project.id, only_baseline: true)
+        project.baseline_cost
       end
 
     socket
@@ -412,7 +412,7 @@ defmodule AgencyWeb.ProjectLive do
           {format_cost(Delivery.estimate_project_cost(@project.id))}
         </p>
         <p :if={@project.baseline_locked_at} class="text-xs text-zinc-500 mt-1">
-          Baseline: {format_cost(Delivery.estimate_project_cost(@project.id, only_baseline: true))}
+          Baseline: {format_cost(@project.baseline_cost)}
         </p>
       </div>
     </div>
