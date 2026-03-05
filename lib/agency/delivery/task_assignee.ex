@@ -12,7 +12,7 @@ defmodule Agency.Delivery.TaskAssignee do
     field :rate_snapshot, :decimal
 
     belongs_to :task, Agency.Delivery.Task
-    belongs_to :assignee, Agency.Accounts.User
+    belongs_to :assignee, Agency.Accounts.User, foreign_key: :user_id
 
     timestamps(type: :utc_datetime)
   end

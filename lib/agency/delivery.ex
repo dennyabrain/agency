@@ -158,12 +158,12 @@ defmodule Agency.Delivery do
   """
   def add_task_assignee(%Task{} = task, attrs) do
     user_id = attrs[:user_id] || attrs["user_id"]
-    project_id = feature_project_id(task.feature_id)
+    project_id = if task.feature_id, do: feature_project_id(task.feature_id)
 
     rate = if user_id && project_id, do: effective_rate(user_id, project_id)
 
     %TaskAssignee{}
-    |> TaskAssignee.changeset(Map.merge(attrs, %{task_id: task.id}))
+    |> TaskAssignee.changeset(Map.put(attrs, "task_id", task.id))
     |> Ecto.Changeset.put_change(:rate_snapshot, rate)
     |> Repo.insert()
   end

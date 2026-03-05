@@ -169,6 +169,7 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
         {if @task.id, do: "Edit Task", else: "New Task"}
       </.header>
 
+      <%!-- Core task fields --%>
       <.simple_form
         for={@form}
         id={"task-form-#{@id}"}
@@ -194,139 +195,144 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
           <.input field={@form[:due_date]} type="date" label="Due date" />
         </div>
 
-        <%!-- Assignees — only shown when editing an existing task --%>
-        <div :if={@task.id} class="space-y-2">
-          <p class="text-sm font-semibold leading-6 text-zinc-800">Assignees</p>
-
-          <div :if={@task_assignees != []} class="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
-            <div
-              :for={ta <- @task_assignees}
-              class="flex items-center justify-between px-3 py-2 text-sm"
-            >
-              <span class="text-zinc-800">{ta.assignee.name}</span>
-              <div class="flex items-center gap-3">
-                <span class="text-zinc-500">{ta.estimated_hours}h</span>
-                <button
-                  phx-click="remove_assignee"
-                  phx-value-id={ta.id}
-                  phx-target={@myself}
-                  type="button"
-                  class="text-zinc-300 hover:text-red-500 leading-none"
-                  aria-label="Remove"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <form
-            phx-submit="add_assignee"
-            phx-target={@myself}
-            id={"task-assignee-form-#{@task.id}"}
-            class="flex items-center gap-2 flex-wrap"
-          >
-            <select
-              name="user_id"
-              class="flex-1 min-w-40 text-sm rounded border-zinc-300 py-1"
-              required
-            >
-              <option value="">Select person…</option>
-              <%= for user <- @all_users do %>
-                <option value={user.id}>{user.name}</option>
-              <% end %>
-            </select>
-            <select name="estimated_hours" class="text-sm rounded border-zinc-300 py-1" required>
-              <option value="">Hours…</option>
-              <%= for {label, value} <- hours_options() do %>
-                <option value={value}>{label}</option>
-              <% end %>
-            </select>
-            <button
-              type="submit"
-              class="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
-            >
-              Add
-            </button>
-          </form>
-        </div>
-
-        <%!-- Resources — only shown when editing an existing task --%>
-        <div :if={@task.id} class="space-y-2">
-          <p class="text-sm font-semibold leading-6 text-zinc-800">Resources</p>
-
-          <div :if={@task_resources != []} class="flex flex-wrap gap-2 mb-2">
-            <div
-              :for={r <- @task_resources}
-              class="flex items-center gap-1.5 rounded-full bg-zinc-50 border border-zinc-200 pl-2 pr-1 py-1 text-xs"
-            >
-              <span class={["rounded-full px-1.5 py-0.5 text-xs font-medium", kind_color(r.kind)]}>
-                {kind_label(r.kind)}
-              </span>
-              <a
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-zinc-700 hover:text-zinc-900 hover:underline max-w-48 truncate"
-              >
-                {resource_display_title(r)}
-              </a>
-              <button
-                phx-click="remove_resource"
-                phx-value-id={r.id}
-                phx-target={@myself}
-                type="button"
-                class="text-zinc-300 hover:text-red-500 leading-none ml-0.5"
-                aria-label="Remove"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-
-          <form
-            phx-submit="add_resource"
-            phx-target={@myself}
-            id={"task-resource-form-#{@task.id}"}
-            class="flex items-center gap-2 flex-wrap"
-          >
-            <input
-              type="url"
-              name="url"
-              placeholder="https://…"
-              class="flex-1 min-w-40 text-sm rounded border-zinc-300 py-1 px-2"
-              required
-            />
-            <input
-              type="text"
-              name="title"
-              placeholder="Label (optional)"
-              class="w-32 text-sm rounded border-zinc-300 py-1 px-2"
-            />
-            <select name="kind" class="text-sm rounded border-zinc-300 py-1">
-              <option value="website">Link</option>
-              <option value="github">GitHub</option>
-              <option value="gdoc">Google Doc</option>
-              <option value="gsheet">Google Sheet</option>
-              <option value="figma">Figma</option>
-              <option value="notion">Notion</option>
-              <option value="other">Other</option>
-            </select>
-            <button
-              type="submit"
-              class="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
-            >
-              Add
-            </button>
-          </form>
-        </div>
-
         <:actions>
           <.button phx-disable-with="Saving...">
             {if @task.id, do: "Update task", else: "Create task"}
           </.button>
         </:actions>
       </.simple_form>
+
+      <%!-- Hint for new tasks --%>
+      <p :if={!@task.id} class="mt-2 text-xs text-zinc-400">
+        Assignees can be added after creating the task.
+      </p>
+
+      <%!-- Assignees — only shown when editing an existing task --%>
+      <div :if={@task.id} class="mt-6 space-y-2">
+        <p class="text-sm font-semibold leading-6 text-zinc-800">Assignees</p>
+
+        <div :if={@task_assignees != []} class="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
+          <div
+            :for={ta <- @task_assignees}
+            class="flex items-center justify-between px-3 py-2 text-sm"
+          >
+            <span class="text-zinc-800">{if ta.assignee, do: ta.assignee.name, else: "Unknown"}</span>
+            <div class="flex items-center gap-3">
+              <span class="text-zinc-500">{ta.estimated_hours}h</span>
+              <button
+                phx-click="remove_assignee"
+                phx-value-id={ta.id}
+                phx-target={@myself}
+                type="button"
+                class="text-zinc-300 hover:text-red-500 leading-none"
+                aria-label="Remove"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <form
+          phx-submit="add_assignee"
+          phx-target={@myself}
+          id={"task-assignee-form-#{@task.id}"}
+          class="flex items-center gap-2 flex-wrap"
+        >
+          <select
+            name="user_id"
+            class="flex-1 min-w-40 text-sm rounded border-zinc-300 py-1"
+            required
+          >
+            <option value="">Select person…</option>
+            <%= for user <- @all_users do %>
+              <option value={user.id}>{user.name}</option>
+            <% end %>
+          </select>
+          <select name="estimated_hours" class="text-sm rounded border-zinc-300 py-1" required>
+            <option value="">Hours…</option>
+            <%= for {label, value} <- hours_options() do %>
+              <option value={value}>{label}</option>
+            <% end %>
+          </select>
+          <button
+            type="submit"
+            class="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+          >
+            Add
+          </button>
+        </form>
+      </div>
+
+      <%!-- Resources — only shown when editing an existing task --%>
+      <div :if={@task.id} class="mt-6 space-y-2">
+        <p class="text-sm font-semibold leading-6 text-zinc-800">Resources</p>
+
+        <div :if={@task_resources != []} class="flex flex-wrap gap-2 mb-2">
+          <div
+            :for={r <- @task_resources}
+            class="flex items-center gap-1.5 rounded-full bg-zinc-50 border border-zinc-200 pl-2 pr-1 py-1 text-xs"
+          >
+            <span class={["rounded-full px-1.5 py-0.5 text-xs font-medium", kind_color(r.kind)]}>
+              {kind_label(r.kind)}
+            </span>
+            <a
+              href={r.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-zinc-700 hover:text-zinc-900 hover:underline max-w-48 truncate"
+            >
+              {resource_display_title(r)}
+            </a>
+            <button
+              phx-click="remove_resource"
+              phx-value-id={r.id}
+              phx-target={@myself}
+              type="button"
+              class="text-zinc-300 hover:text-red-500 leading-none ml-0.5"
+              aria-label="Remove"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <form
+          phx-submit="add_resource"
+          phx-target={@myself}
+          id={"task-resource-form-#{@task.id}"}
+          class="flex items-center gap-2 flex-wrap"
+        >
+          <input
+            type="url"
+            name="url"
+            placeholder="https://…"
+            class="flex-1 min-w-40 text-sm rounded border-zinc-300 py-1 px-2"
+            required
+          />
+          <input
+            type="text"
+            name="title"
+            placeholder="Label (optional)"
+            class="w-32 text-sm rounded border-zinc-300 py-1 px-2"
+          />
+          <select name="kind" class="text-sm rounded border-zinc-300 py-1">
+            <option value="website">Link</option>
+            <option value="github">GitHub</option>
+            <option value="gdoc">Google Doc</option>
+            <option value="gsheet">Google Sheet</option>
+            <option value="figma">Figma</option>
+            <option value="notion">Notion</option>
+            <option value="other">Other</option>
+          </select>
+          <button
+            type="submit"
+            class="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+          >
+            Add
+          </button>
+        </form>
+      </div>
     </div>
     """
   end

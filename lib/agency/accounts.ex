@@ -51,6 +51,28 @@ defmodule Agency.Accounts do
     Repo.delete(user)
   end
 
+  @doc """
+  Creates a confirmed admin user, intended for initial app setup.
+
+  Forces `app_roles: ["admin"]` and marks the account as confirmed so the user
+  can log in immediately without going through an email flow.
+
+  Accepts the same attrs as `admin_create_user/1` (email, name, discipline,
+  seniority, password are required).
+  """
+  def create_admin_user(attrs) do
+    attrs = Map.merge(Map.new(attrs), %{app_roles: ["admin"]})
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:user, User.admin_create_changeset(%User{}, attrs))
+    |> Ecto.Multi.update(:confirmed, fn %{user: user} -> User.confirm_changeset(user) end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{confirmed: user}} -> {:ok, user}
+      {:error, _step, changeset, _} -> {:error, changeset}
+    end
+  end
+
   @doc "Replaces a user's app_roles. Pass an empty list to remove all roles."
   def update_user_roles(%User{} = user, roles) when is_list(roles) do
     user
