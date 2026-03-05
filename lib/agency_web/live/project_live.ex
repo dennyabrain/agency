@@ -310,6 +310,7 @@ defmodule AgencyWeb.ProjectLive do
           feature={@editing_feature}
           project_id={@project.id}
           sprints={@sprints}
+          all_users={@all_users}
           current_user={@current_user}
         />
       </.modal>

@@ -1,7 +1,7 @@
 defmodule AgencyWeb.FeatureLive do
   use AgencyWeb, :live_view
 
-  alias Agency.{Delivery, Sprints, Accounts, Teams, Authorization}
+  alias Agency.{Delivery, Sprints, Accounts, Authorization}
 
   alias AgencyWeb.ProjectLive.{
     FeatureFormComponent,
@@ -100,26 +100,6 @@ defmodule AgencyWeb.FeatureLive do
     {:noreply, reload_feature(socket)}
   end
 
-  def handle_event("add_team_member", %{"user_id" => user_id}, socket) when user_id != "" do
-    feature = socket.assigns.feature
-
-    with {:ok, team_id} <- ensure_team(feature),
-         {:ok, _} <- Teams.add_team_member(%{team_id: team_id, user_id: user_id}) do
-      {:noreply, reload_feature(socket)}
-    else
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Could not add team member.")}
-    end
-  end
-
-  def handle_event("add_team_member", _params, socket), do: {:noreply, socket}
-
-  def handle_event("remove_team_member", %{"id" => tm_id}, socket) do
-    tm = Teams.get_team_member!(tm_id)
-    Teams.remove_team_member(tm)
-    {:noreply, reload_feature(socket)}
-  end
-
   # ---------------------------------------------------------------------------
   # handle_info (from child LiveComponents)
   # ---------------------------------------------------------------------------
@@ -145,27 +125,12 @@ defmodule AgencyWeb.FeatureLive do
     assign(socket, :feature, Delivery.get_feature_with_details!(socket.assigns.feature.id))
   end
 
-  defp ensure_team(%{team_id: team_id}) when not is_nil(team_id), do: {:ok, team_id}
-
-  defp ensure_team(feature) do
-    case Teams.create_team(%{name: "#{feature.name} Team"}) do
-      {:ok, team} ->
-        case Delivery.update_feature(feature, %{team_id: team.id}) do
-          {:ok, _} -> {:ok, team.id}
-          err -> err
-        end
-
-      err ->
-        err
-    end
-  end
-
-  defp team_members(%{team: %{team_members: members}}), do: members
-  defp team_members(_), do: []
-
-  defp assignable_users(all_users, feature) do
-    existing_ids = team_members(feature) |> Enum.map(& &1.user_id)
-    Enum.reject(all_users, &(&1.id in existing_ids))
+  defp derived_team(feature) do
+    feature.tasks
+    |> Enum.flat_map(& &1.task_assignees)
+    |> Enum.map(& &1.assignee)
+    |> Enum.filter(& &1)
+    |> Enum.uniq_by(& &1.id)
   end
 
   defp done_count(tasks), do: Enum.count(tasks, &(&1.status == :done))
@@ -222,7 +187,7 @@ defmodule AgencyWeb.FeatureLive do
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :team_members, team_members(assigns.feature))
+    assigns = assign(assigns, :derived_team, derived_team(assigns.feature))
 
     ~H"""
     <div class="max-w-3xl mx-auto space-y-8">
@@ -411,41 +376,29 @@ defmodule AgencyWeb.FeatureLive do
         </form>
       </div>
 
-      <%!-- Feature team --%>
-      <div :if={@can_assign || @team_members != []}>
+      <%!-- Owner + derived team --%>
+      <div :if={@feature.owner || @derived_team != []}>
         <h2 class="text-base font-semibold text-zinc-900 mb-3">Feature team</h2>
 
-        <div :if={@team_members != []} class="flex flex-wrap gap-2 mb-3">
-          <div
-            :for={tm <- @team_members}
-            class="flex items-center gap-1.5 rounded-full bg-white border border-zinc-200 px-3 py-1 text-xs"
-          >
-            <span class="font-medium text-zinc-700">{tm.user.name}</span>
-            <span class="text-zinc-400">{Phoenix.Naming.humanize(tm.user.discipline)}</span>
-            <button
-              :if={@can_assign}
-              phx-click="remove_team_member"
-              phx-value-id={tm.id}
-              class="ml-1 text-zinc-300 hover:text-red-500 leading-none"
-              aria-label="Remove"
-            >
-              ×
-            </button>
+        <%!-- Owner chip --%>
+        <div :if={@feature.owner} class="flex flex-wrap gap-2 mb-3">
+          <div class="flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs">
+            <span class="text-indigo-500 font-medium">Owner</span>
+            <span class="font-medium text-zinc-700">{@feature.owner.name}</span>
+            <span class="text-zinc-400">{Phoenix.Naming.humanize(@feature.owner.discipline)}</span>
           </div>
         </div>
 
-        <form :if={@can_assign} phx-submit="add_team_member" class="flex items-center gap-2">
-          <select name="user_id" class="text-sm rounded border-zinc-300 py-1">
-            <option value="">Add team member…</option>
-            <option
-              :for={u <- assignable_users(@all_users, @feature)}
-              value={u.id}
-            >
-              {u.name} — {Phoenix.Naming.humanize(u.discipline)}
-            </option>
-          </select>
-          <.button type="submit" class="text-xs py-1 px-3">Add</.button>
-        </form>
+        <%!-- Derived team (read-only) --%>
+        <div :if={@derived_team != []} class="flex flex-wrap gap-2">
+          <div
+            :for={u <- @derived_team}
+            class="flex items-center gap-1.5 rounded-full bg-white border border-zinc-200 px-3 py-1 text-xs"
+          >
+            <span class="font-medium text-zinc-700">{u.name}</span>
+            <span class="text-zinc-400">{Phoenix.Naming.humanize(u.discipline)}</span>
+          </div>
+        </div>
       </div>
 
       <%!-- Cost --%>
@@ -467,6 +420,7 @@ defmodule AgencyWeb.FeatureLive do
           feature={@editing_feature}
           project_id={@feature.project_id}
           sprints={@sprints}
+          all_users={@all_users}
           current_user={@current_user}
         />
       </.modal>

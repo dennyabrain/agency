@@ -117,6 +117,13 @@ defmodule AgencyWeb.ProjectLive.FeatureFormComponent do
           options={sprint_options(@sprints)}
           prompt="No sprint assigned"
         />
+        <.input
+          field={@form[:owner_id]}
+          type="select"
+          label="Feature owner"
+          options={Enum.map(@all_users, fn u -> {"#{u.name} · #{Phoenix.Naming.humanize(u.discipline)}", u.id} end)}
+          prompt="No owner"
+        />
         <:actions>
           <.button phx-disable-with="Saving...">
             {if @feature.id, do: "Update feature", else: "Create feature"}

@@ -36,13 +36,13 @@ defmodule Agency.Delivery do
     )
   end
 
-  @doc "Returns features with sprint, team members, and tasks preloaded. Avoids N+1 on project page."
+  @doc "Returns features with sprint, owner, and tasks preloaded. Avoids N+1 on project page."
   def list_features_with_details(project_id) do
     list_features(project_id)
     |> Repo.preload([
       :sprint,
       :resources,
-      team: [team_members: [:user]],
+      :owner,
       tasks: [task_assignees: [:assignee], resources: []]
     ])
   end
@@ -86,7 +86,7 @@ defmodule Agency.Delivery do
       :sprint,
       :project,
       :resources,
-      team: [team_members: [:user]],
+      :owner,
       tasks: [task_assignees: [:assignee], resources: []]
     ])
   end

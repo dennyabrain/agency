@@ -20,6 +20,7 @@ defmodule Agency.Delivery.Feature do
     belongs_to :project, Agency.Planning.Project
     belongs_to :sprint, Agency.Sprints.Sprint
     belongs_to :team, Agency.Teams.Team
+    belongs_to :owner, Agency.Accounts.User, foreign_key: :owner_id
 
     has_many :tasks, Agency.Delivery.Task
     has_many :resources, Agency.Delivery.Resource
@@ -31,12 +32,13 @@ defmodule Agency.Delivery.Feature do
     feature
     |> cast(attrs, [
       :name, :description, :hypothesis, :status,
-      :priority, :is_baseline, :project_id, :sprint_id, :team_id
+      :priority, :is_baseline, :project_id, :sprint_id, :team_id, :owner_id
     ])
     |> validate_required([:name, :status, :project_id])
     |> validate_number(:priority, greater_than_or_equal_to: 0)
     |> foreign_key_constraint(:project_id)
     |> foreign_key_constraint(:sprint_id)
     |> foreign_key_constraint(:team_id)
+    |> foreign_key_constraint(:owner_id)
   end
 end
