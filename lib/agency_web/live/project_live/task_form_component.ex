@@ -1,7 +1,7 @@
 defmodule AgencyWeb.ProjectLive.TaskFormComponent do
   use AgencyWeb, :live_component
 
-  alias Agency.Delivery
+  alias Agency.{Authorization, Delivery}
   alias Agency.Delivery.Task
 
   @valid_hours [1, 2, 3, 4, 6, 8, 12, 16, 24]
@@ -13,6 +13,7 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
     resources = if task.id, do: Map.get(task, :resources, []), else: []
     task_assignees = if task.id, do: Delivery.list_task_assignees(task.id), else: []
     time_blocks = if task.id, do: Delivery.list_time_blocks(task.id), else: []
+    can_edit_tb = Authorization.can_edit_time_block?(assigns[:current_user])
 
     {:ok,
      socket
@@ -21,6 +22,8 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
      |> assign(:task_resources, resources)
      |> assign(:task_assignees, task_assignees)
      |> assign(:time_blocks, time_blocks)
+     |> assign(:can_edit_tb, can_edit_tb)
+     |> assign_new(:editing_time_block_id, fn -> nil end)
      |> assign_form(changeset)}
   end
 
@@ -124,6 +127,41 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
     {:noreply, assign(socket, :time_blocks, updated)}
   end
 
+  def handle_event("edit_time_block", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :editing_time_block_id, id)}
+  end
+
+  def handle_event("cancel_edit_time_block", _params, socket) do
+    {:noreply, assign(socket, :editing_time_block_id, nil)}
+  end
+
+  def handle_event("update_time_block", %{"id" => id} = params, socket) do
+    start_at = parse_datetime(params["start_at"])
+    end_at = parse_datetime(params["end_at"])
+    title = params |> Map.get("title", "") |> String.trim() |> nilify()
+    attrs = %{"start_at" => start_at, "end_at" => end_at, "title" => title}
+
+    time_block = Enum.find(socket.assigns.time_blocks, &(&1.id == id))
+
+    case Delivery.update_time_block(time_block, attrs) do
+      {:ok, _} ->
+        time_blocks = Delivery.list_time_blocks(socket.assigns.task.id)
+
+        {:noreply,
+         socket
+         |> assign(:time_blocks, time_blocks)
+         |> assign(:editing_time_block_id, nil)}
+
+      {:error, changeset} ->
+        msg =
+          changeset.errors
+          |> Enum.map(fn {field, {msg, _}} -> "#{field}: #{msg}" end)
+          |> Enum.join(", ")
+
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Private
   # ---------------------------------------------------------------------------
@@ -174,6 +212,13 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
 
   defp format_datetime(%NaiveDateTime{} = dt) do
     Calendar.strftime(dt, "%b %d, %Y %H:%M")
+  end
+
+  # Formats for the datetime-local HTML input value attribute ("2026-03-08T09:30")
+  defp format_datetime_local(nil), do: ""
+
+  defp format_datetime_local(%NaiveDateTime{} = dt) do
+    Calendar.strftime(dt, "%Y-%m-%dT%H:%M")
   end
 
   defp hours_options do
@@ -392,40 +437,111 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
           :if={@time_blocks != []}
           class="divide-y divide-zinc-100 rounded-lg border border-zinc-200"
         >
-          <div
-            :for={tb <- @time_blocks}
-            class="flex items-start justify-between px-3 py-2 text-sm"
-          >
-            <div class="space-y-0.5">
-              <p class="font-medium text-zinc-800">
-                {if tb.title && tb.title != "", do: tb.title, else: "Time block"}
-              </p>
-              <p class="text-xs text-zinc-500">
-                {format_datetime(tb.start_at)} – {format_datetime(tb.end_at)}
-              </p>
-              <div :if={tb.time_block_assignees != []} class="flex flex-wrap gap-1 pt-0.5">
-                <span
-                  :for={tba <- tb.time_block_assignees}
-                  class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+          <div :for={tb <- @time_blocks}>
+            <%!-- Inline edit form --%>
+            <form
+              :if={@can_edit_tb && @editing_time_block_id == tb.id}
+              phx-submit="update_time_block"
+              phx-target={@myself}
+              class="space-y-2 px-3 py-2"
+            >
+              <input type="hidden" name="id" value={tb.id} />
+              <input
+                type="text"
+                name="title"
+                value={tb.title}
+                placeholder="Title (optional)"
+                class="w-full text-sm rounded border-zinc-300 py-1 px-2"
+              />
+              <div class="flex items-center gap-2 flex-wrap">
+                <div class="flex flex-col gap-0.5 flex-1 min-w-40">
+                  <label class="text-xs text-zinc-500">Start</label>
+                  <input
+                    type="datetime-local"
+                    name="start_at"
+                    value={format_datetime_local(tb.start_at)}
+                    class="text-sm rounded border-zinc-300 py-1 px-2"
+                    required
+                  />
+                </div>
+                <div class="flex flex-col gap-0.5 flex-1 min-w-40">
+                  <label class="text-xs text-zinc-500">End</label>
+                  <input
+                    type="datetime-local"
+                    name="end_at"
+                    value={format_datetime_local(tb.end_at)}
+                    class="text-sm rounded border-zinc-300 py-1 px-2"
+                    required
+                  />
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  type="submit"
+                  class="rounded-lg bg-earth-900 px-3 py-1 text-xs font-semibold text-white hover:bg-earth-700"
                 >
-                  {if tba.assignee, do: tba.assignee.name, else: "Unknown"}
-                </span>
+                  Save
+                </button>
+                <button
+                  type="button"
+                  phx-click="cancel_edit_time_block"
+                  phx-target={@myself}
+                  class="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+
+            <%!-- Display row --%>
+            <div
+              :if={@editing_time_block_id != tb.id}
+              class="flex items-start justify-between px-3 py-2 text-sm"
+            >
+              <div class="space-y-0.5">
+                <p class="font-medium text-zinc-800">
+                  {if tb.title && tb.title != "", do: tb.title, else: "Time block"}
+                </p>
+                <p class="text-xs text-zinc-500">
+                  {format_datetime(tb.start_at)} – {format_datetime(tb.end_at)}
+                </p>
+                <div :if={tb.time_block_assignees != []} class="flex flex-wrap gap-1 pt-0.5">
+                  <span
+                    :for={tba <- tb.time_block_assignees}
+                    class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+                  >
+                    {if tba.assignee, do: tba.assignee.name, else: "Unknown"}
+                  </span>
+                </div>
+              </div>
+              <div :if={@can_edit_tb} class="ml-3 mt-0.5 flex items-center gap-2 shrink-0">
+                <button
+                  phx-click="edit_time_block"
+                  phx-value-id={tb.id}
+                  phx-target={@myself}
+                  type="button"
+                  class="text-zinc-400 hover:text-zinc-700 text-xs leading-none"
+                  aria-label="Edit"
+                >
+                  Edit
+                </button>
+                <button
+                  phx-click="remove_time_block"
+                  phx-value-id={tb.id}
+                  phx-target={@myself}
+                  type="button"
+                  class="text-zinc-300 hover:text-red-500 leading-none"
+                  aria-label="Remove"
+                >
+                  ×
+                </button>
               </div>
             </div>
-            <button
-              phx-click="remove_time_block"
-              phx-value-id={tb.id}
-              phx-target={@myself}
-              type="button"
-              class="ml-3 mt-0.5 text-zinc-300 hover:text-red-500 leading-none shrink-0"
-              aria-label="Remove time block"
-            >
-              ×
-            </button>
           </div>
         </div>
 
         <form
+          :if={@can_edit_tb}
           phx-submit="add_time_block"
           phx-target={@myself}
           id={"task-time-block-form-#{@task.id}"}

@@ -54,4 +54,10 @@ defmodule Agency.Authorization do
 
   @doc "Can manage app roles for other users."
   def can_manage_roles?(%User{} = user), do: has_role?(user, :admin)
+
+  @doc "Can add, edit, and delete time blocks on tasks."
+  def can_edit_time_block?(%User{} = user),
+    do: has_role?(user, :admin) or has_role?(user, :pm)
+
+  def can_edit_time_block?(nil), do: false
 end

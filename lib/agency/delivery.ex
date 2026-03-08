@@ -254,6 +254,12 @@ defmodule Agency.Delivery do
     end
   end
 
+  def update_time_block(%TimeBlock{} = tb, attrs) do
+    tb
+    |> TimeBlock.changeset(attrs)
+    |> Repo.update()
+  end
+
   @doc "Deletes a time block and its assignees (cascade)."
   def delete_time_block(id) do
     case Repo.get(TimeBlock, id) do
