@@ -22,6 +22,15 @@ defmodule Agency.Sprints do
 
   def get_sprint!(id), do: Repo.get!(Sprint, id)
 
+  @doc "Returns sprints whose date range overlaps the given from/to dates."
+  def list_sprints_in_range(%Date{} = from_date, %Date{} = to_date) do
+    Repo.all(
+      from s in Sprint,
+        where: s.start_date <= ^to_date and s.end_date >= ^from_date,
+        order_by: [asc: s.start_date]
+    )
+  end
+
   @doc "Returns the sprint whose date range contains today, or nil."
   def current_sprint do
     today = Date.utc_today()

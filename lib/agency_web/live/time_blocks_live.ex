@@ -1,7 +1,7 @@
 defmodule AgencyWeb.TimeBlocksLive do
   use AgencyWeb, :live_view
 
-  alias Agency.{Delivery, Planning}
+  alias Agency.{Delivery, Planning, Sprints}
 
   # Working hours shown in week view (inclusive start, exclusive end)
   @view_start_hour 7
@@ -38,10 +38,16 @@ defmodule AgencyWeb.TimeBlocksLive do
         to_dt: to_dt
       )
 
+    sprints =
+      Sprints.list_sprints_in_range(
+        NaiveDateTime.to_date(from_dt),
+        NaiveDateTime.to_date(to_dt)
+      )
+
     calendar =
       case view do
-        :week -> build_week(time_blocks, anchor_date)
-        :month -> build_month(time_blocks, anchor_date)
+        :week -> build_week(time_blocks, sprints, anchor_date)
+        :month -> build_month(time_blocks, sprints, anchor_date)
       end
 
     {:noreply,
@@ -186,7 +192,7 @@ defmodule AgencyWeb.TimeBlocksLive do
       <div class="flex border-b border-zinc-200">
         <div class="w-14 shrink-0 border-r border-zinc-200" />
         <div
-          :for={{date, _blocks} <- @calendar.days}
+          :for={{date, _blocks, sprint} <- @calendar.days}
           class="flex-1 border-r border-zinc-200 last:border-r-0 py-2 text-center"
         >
           <p class="text-xs text-zinc-500 uppercase">{Calendar.strftime(date, "%a")}</p>
@@ -195,6 +201,13 @@ defmodule AgencyWeb.TimeBlocksLive do
             if(date == Date.utc_today(), do: "text-earth-700", else: "text-zinc-800")
           ]}>
             {date.day}
+          </p>
+          <p
+            :if={sprint}
+            class="text-[10px] text-indigo-400 font-medium mt-0.5 leading-none"
+            title={sprint_label(sprint)}
+          >
+            S{sprint.number}
           </p>
         </div>
       </div>
@@ -216,7 +229,7 @@ defmodule AgencyWeb.TimeBlocksLive do
         <%!-- Day columns --%>
         <div class="flex flex-1">
           <div
-            :for={{date, blocks} <- @calendar.days}
+            :for={{date, blocks, _sprint} <- @calendar.days}
             class="flex-1 border-r border-zinc-200 last:border-r-0 relative"
             style={"height: #{@view_height_px}px"}
           >
@@ -290,27 +303,36 @@ defmodule AgencyWeb.TimeBlocksLive do
       <%!-- Calendar grid (42 cells = 6 rows × 7 cols) --%>
       <div class="grid grid-cols-7">
         <div
-          :for={{date, blocks, in_month?} <- @calendar.cells}
+          :for={{date, blocks, in_month?, sprint} <- @calendar.cells}
           class={[
             "min-h-24 border-r border-b border-zinc-100 last:border-r-0 p-1.5",
             if(in_month?, do: "bg-white", else: "bg-zinc-50")
           ]}
         >
-          <p class={[
-            "text-xs font-semibold mb-1",
-            cond do
-              date == Date.utc_today() ->
-                "inline-flex h-5 w-5 items-center justify-center rounded-full bg-earth-900 text-white"
+          <div class="flex items-start justify-between mb-1">
+            <p class={[
+              "text-xs font-semibold",
+              cond do
+                date == Date.utc_today() ->
+                  "inline-flex h-5 w-5 items-center justify-center rounded-full bg-earth-900 text-white"
 
-              in_month? ->
-                "text-zinc-700"
+                in_month? ->
+                  "text-zinc-700"
 
-              true ->
-                "text-zinc-300"
-            end
-          ]}>
-            {date.day}
-          </p>
+                true ->
+                  "text-zinc-300"
+              end
+            ]}>
+              {date.day}
+            </p>
+            <span
+              :if={sprint}
+              class="text-[9px] font-medium text-indigo-400 leading-none mt-0.5"
+              title={sprint_label(sprint)}
+            >
+              S{sprint.number}
+            </span>
+          </div>
 
           <div class="space-y-0.5">
             <div
@@ -340,7 +362,7 @@ defmodule AgencyWeb.TimeBlocksLive do
   # Calendar building
   # ---------------------------------------------------------------------------
 
-  defp build_week(time_blocks, anchor_date) do
+  defp build_week(time_blocks, sprints, anchor_date) do
     week_start = week_start(anchor_date)
     week_end = Date.add(week_start, 6)
 
@@ -353,7 +375,7 @@ defmodule AgencyWeb.TimeBlocksLive do
             NaiveDateTime.to_date(tb.start_at) == date
           end)
 
-        {date, day_blocks}
+        {date, day_blocks, sprint_for_date(sprints, date)}
       end
 
     label =
@@ -370,7 +392,7 @@ defmodule AgencyWeb.TimeBlocksLive do
     }
   end
 
-  defp build_month(time_blocks, anchor_date) do
+  defp build_month(time_blocks, sprints, anchor_date) do
     first_day = %{anchor_date | day: 1}
     last_day = Date.end_of_month(anchor_date)
 
@@ -387,14 +409,14 @@ defmodule AgencyWeb.TimeBlocksLive do
             NaiveDateTime.to_date(tb.start_at) == date
           end)
 
-        {date, day_blocks, date.month == anchor_date.month}
+        {date, day_blocks, date.month == anchor_date.month, sprint_for_date(sprints, date)}
       end
 
     # Trim trailing weeks if they're entirely outside the month
     cells =
       cells
       |> Enum.chunk_every(7)
-      |> Enum.reject(fn week -> Enum.all?(week, fn {_, _, in_month?} -> !in_month? end) end)
+      |> Enum.reject(fn week -> Enum.all?(week, fn {_, _, in_month?, _} -> !in_month? end) end)
       |> List.flatten()
 
     label = Calendar.strftime(first_day, "%B %Y")
@@ -462,6 +484,18 @@ defmodule AgencyWeb.TimeBlocksLive do
     duration_minutes = NaiveDateTime.diff(end_at, start_at, :second) |> div(60)
     max(20, duration_minutes)
   end
+
+  defp sprint_for_date(sprints, date) do
+    Enum.find(sprints, fn s ->
+      Date.compare(s.start_date, date) in [:lt, :eq] and
+        Date.compare(s.end_date, date) in [:gt, :eq]
+    end)
+  end
+
+  defp sprint_label(%{number: n, name: name}) when is_binary(name) and name != "",
+    do: "Sprint #{n} · #{name}"
+
+  defp sprint_label(%{number: n}), do: "Sprint #{n}"
 
   defp block_title(tb) do
     if tb.title && tb.title != "", do: tb.title, else: tb.task.name
