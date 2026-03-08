@@ -31,6 +31,9 @@ defmodule AgencyWeb.ProjectLive do
       |> assign(:editing_feature, nil)
       |> assign(:editing_task, nil)
       |> assign(:editing_task_feature_id, nil)
+      |> assign(:expanded_milestone_id, nil)
+      |> assign(:editing_milestone, nil)
+      |> assign(:editing_deliverable, nil)
       |> assign(:can_edit, Authorization.can_create_project?(user))
       |> assign(:can_assign, Authorization.can_assign_members?(user))
       |> assign(:can_view_cost, Authorization.can_view_project_cost?(user))
@@ -45,14 +48,18 @@ defmodule AgencyWeb.ProjectLive do
   end
 
   defp apply_action(socket, :plan, _params) do
-    assign(socket, :page_title, "#{socket.assigns.project.name} · Plan")
+    project = socket.assigns.project
+
+    socket
+    |> assign(:page_title, "#{project.name} · Plan")
+    |> assign(:milestones, Planning.list_milestones_with_deliverables(project.id))
   end
 
   defp apply_action(socket, :track, _params) do
     project = socket.assigns.project
 
     workload = Delivery.workload_by_project(project.id)
-    milestones = Planning.list_milestones(project.id)
+    milestones = Planning.list_milestones_with_deliverables(project.id)
 
     current_cost =
       if socket.assigns.can_view_cost, do: Delivery.estimate_project_cost(project.id)
@@ -160,6 +167,110 @@ defmodule AgencyWeb.ProjectLive do
     end
   end
 
+  # Milestone events (plan tab)
+
+  def handle_event("toggle_milestone", %{"id" => id}, socket) do
+    expanded = if socket.assigns.expanded_milestone_id == id, do: nil, else: id
+    {:noreply, assign(socket, :expanded_milestone_id, expanded)}
+  end
+
+  def handle_event("open_milestone_form", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :editing_milestone, Planning.get_milestone!(id))}
+  end
+
+  def handle_event("open_milestone_form", _params, socket) do
+    {:noreply, assign(socket, :editing_milestone, %Planning.Milestone{})}
+  end
+
+  def handle_event("close_milestone_form", _params, socket) do
+    {:noreply, assign(socket, :editing_milestone, nil)}
+  end
+
+  def handle_event("save_milestone", params, socket) do
+    attrs =
+      Map.take(params, ["name", "description", "due_date", "status"])
+      |> Map.put("project_id", socket.assigns.project.id)
+
+    result =
+      case params["id"] do
+        "" -> Planning.create_milestone(attrs)
+        id -> Planning.update_milestone(Planning.get_milestone!(id), attrs)
+      end
+
+    case result do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> reload_milestones()
+         |> assign(:editing_milestone, nil)}
+
+      {:error, changeset} ->
+        msg = Enum.map_join(changeset.errors, ", ", fn {f, {m, _}} -> "#{f}: #{m}" end)
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("delete_milestone", %{"id" => id}, socket) do
+    Planning.delete_milestone(Planning.get_milestone!(id))
+    {:noreply, reload_milestones(socket)}
+  end
+
+  # Deliverable events (plan tab)
+
+  def handle_event("open_deliverable_form", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :editing_deliverable, Planning.get_deliverable!(id))}
+  end
+
+  def handle_event("open_deliverable_form", %{"milestone-id" => mid}, socket) do
+    {:noreply,
+     assign(socket, :editing_deliverable, %Planning.Deliverable{milestone_id: mid})}
+  end
+
+  def handle_event("close_deliverable_form", _params, socket) do
+    {:noreply, assign(socket, :editing_deliverable, nil)}
+  end
+
+  def handle_event("save_deliverable", params, socket) do
+    attrs =
+      Map.take(params, ["name", "description", "due_date", "status", "milestone_id"])
+      |> Map.put("project_id", socket.assigns.project.id)
+
+    result =
+      case params["id"] do
+        "" -> Planning.create_deliverable(attrs)
+        id -> Planning.update_deliverable(Planning.get_deliverable!(id), attrs)
+      end
+
+    case result do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> reload_milestones()
+         |> assign(:editing_deliverable, nil)}
+
+      {:error, changeset} ->
+        msg = Enum.map_join(changeset.errors, ", ", fn {f, {m, _}} -> "#{f}: #{m}" end)
+        {:noreply, put_flash(socket, :error, msg)}
+    end
+  end
+
+  def handle_event("delete_deliverable", %{"id" => id}, socket) do
+    Planning.delete_deliverable(Planning.get_deliverable!(id))
+    {:noreply, reload_milestones(socket)}
+  end
+
+  # Status updates (track tab)
+
+  def handle_event("update_milestone_status", %{"id" => id, "status" => status}, socket) do
+    Planning.update_milestone(Planning.get_milestone!(id), %{status: status})
+    {:noreply, reload_milestones(socket)}
+  end
+
+  def handle_event("update_deliverable_status", %{"id" => id, "status" => status}, socket) do
+    Planning.update_deliverable(Planning.get_deliverable!(id), %{status: status})
+    {:noreply, reload_milestones(socket)}
+  end
+
   # ---------------------------------------------------------------------------
   # handle_info (from child LiveComponents)
   # ---------------------------------------------------------------------------
@@ -257,9 +368,11 @@ defmodule AgencyWeb.ProjectLive do
         <.plan_tab
           project={@project}
           features={@features}
+          milestones={assigns[:milestones] || []}
           sprints={@sprints}
           all_users={@all_users}
           expanded_feature_id={@expanded_feature_id}
+          expanded_milestone_id={@expanded_milestone_id}
           editing_feature={@editing_feature}
           editing_task={@editing_task}
           editing_task_feature_id={@editing_task_feature_id}
@@ -281,6 +394,7 @@ defmodule AgencyWeb.ProjectLive do
           baseline_cost={assigns[:baseline_cost]}
           editing_task={@editing_task}
           editing_task_feature_id={@editing_task_feature_id}
+          can_edit={@can_edit}
           can_view_cost={@can_view_cost}
           all_users={@all_users}
           current_user={@current_user}
@@ -329,6 +443,142 @@ defmodule AgencyWeb.ProjectLive do
           all_users={@all_users}
           current_user={@current_user}
         />
+      </.modal>
+
+      <%!-- Milestone form modal --%>
+      <.modal
+        :if={@editing_milestone}
+        id="milestone-form-modal"
+        show
+        on_cancel={JS.push("close_milestone_form")}
+      >
+        <.header>{if @editing_milestone.id, do: "Edit Milestone", else: "New Milestone"}</.header>
+        <form phx-submit="save_milestone" class="mt-4 space-y-4">
+          <input type="hidden" name="id" value={@editing_milestone.id || ""} />
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Name</label>
+            <input
+              type="text"
+              name="name"
+              value={@editing_milestone.name}
+              required
+              class="w-full rounded border-zinc-300 text-sm py-1.5 px-2"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Description</label>
+            <textarea
+              name="description"
+              rows="2"
+              class="w-full rounded border-zinc-300 text-sm py-1.5 px-2"
+            >{@editing_milestone.description}</textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-zinc-700 mb-1">Due date</label>
+              <input
+                type="date"
+                name="due_date"
+                value={@editing_milestone.due_date}
+                class="w-full rounded border-zinc-300 text-sm py-1.5 px-2"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-zinc-700 mb-1">Status</label>
+              <select name="status" class="w-full rounded border-zinc-300 text-sm py-1.5 px-2">
+                <option
+                  :for={s <- milestone_statuses()}
+                  value={s}
+                  selected={to_string(@editing_milestone.status) == s}
+                >
+                  {Phoenix.Naming.humanize(s)}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <.button type="submit">
+              {if @editing_milestone.id, do: "Update milestone", else: "Create milestone"}
+            </.button>
+          </div>
+        </form>
+      </.modal>
+
+      <%!-- Deliverable form modal --%>
+      <.modal
+        :if={@editing_deliverable}
+        id="deliverable-form-modal"
+        show
+        on_cancel={JS.push("close_deliverable_form")}
+      >
+        <.header>
+          {if @editing_deliverable.id, do: "Edit Deliverable", else: "New Deliverable"}
+        </.header>
+        <form phx-submit="save_deliverable" class="mt-4 space-y-4">
+          <input type="hidden" name="id" value={@editing_deliverable.id || ""} />
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Name</label>
+            <input
+              type="text"
+              name="name"
+              value={@editing_deliverable.name}
+              required
+              class="w-full rounded border-zinc-300 text-sm py-1.5 px-2"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Description</label>
+            <textarea
+              name="description"
+              rows="2"
+              class="w-full rounded border-zinc-300 text-sm py-1.5 px-2"
+            >{@editing_deliverable.description}</textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-zinc-700 mb-1">Due date</label>
+              <input
+                type="date"
+                name="due_date"
+                value={@editing_deliverable.due_date}
+                class="w-full rounded border-zinc-300 text-sm py-1.5 px-2"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-zinc-700 mb-1">Status</label>
+              <select name="status" class="w-full rounded border-zinc-300 text-sm py-1.5 px-2">
+                <option
+                  :for={s <- deliverable_statuses()}
+                  value={s}
+                  selected={to_string(@editing_deliverable.status) == s}
+                >
+                  {Phoenix.Naming.humanize(s)}
+                </option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-zinc-700 mb-1">Milestone</label>
+            <select
+              name="milestone_id"
+              class="w-full rounded border-zinc-300 text-sm py-1.5 px-2"
+            >
+              <option value="">No milestone</option>
+              <option
+                :for={m <- assigns[:milestones] || []}
+                value={m.id}
+                selected={@editing_deliverable.milestone_id == m.id}
+              >
+                {m.name}
+              </option>
+            </select>
+          </div>
+          <div class="flex justify-end">
+            <.button type="submit">
+              {if @editing_deliverable.id, do: "Update deliverable", else: "Create deliverable"}
+            </.button>
+          </div>
+        </form>
       </.modal>
     </div>
     """
@@ -396,6 +646,120 @@ defmodule AgencyWeb.ProjectLive do
         </div>
       </div>
 
+      <%!-- Milestones --%>
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-semibold text-zinc-900">
+            Milestones
+            <span class="ml-1 text-sm font-normal text-zinc-500">({length(@milestones)})</span>
+          </h2>
+          <.button :if={@can_edit} phx-click="open_milestone_form">+ Add Milestone</.button>
+        </div>
+
+        <div class="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
+          <div :for={m <- @milestones}>
+            <%!-- Milestone row --%>
+            <div class="flex items-center justify-between px-4 py-3">
+              <button
+                phx-click="toggle_milestone"
+                phx-value-id={m.id}
+                type="button"
+                class="flex items-center gap-2 text-left min-w-0"
+              >
+                <.icon
+                  name={if @expanded_milestone_id == m.id, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
+                  class="h-4 w-4 text-zinc-400 shrink-0"
+                />
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-zinc-900">{m.name}</p>
+                  <p :if={m.due_date} class="text-xs text-zinc-500">
+                    Due {Calendar.strftime(m.due_date, "%b %d, %Y")}
+                  </p>
+                </div>
+              </button>
+              <div class="flex items-center gap-3 shrink-0 ml-4">
+                <.status_badge status={m.status} />
+                <div :if={@can_edit} class="flex items-center gap-2">
+                  <button
+                    phx-click="open_milestone_form"
+                    phx-value-id={m.id}
+                    type="button"
+                    class="text-xs text-zinc-400 hover:text-zinc-700"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    phx-click="delete_milestone"
+                    phx-value-id={m.id}
+                    type="button"
+                    data-confirm={"Delete milestone "#{m.name}" and all its deliverables?"}
+                    class="text-xs text-zinc-300 hover:text-red-500"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <%!-- Deliverables (expanded) --%>
+            <div :if={@expanded_milestone_id == m.id} class="border-t border-zinc-100 bg-zinc-50">
+              <div :if={m.deliverables != []} class="divide-y divide-zinc-100">
+                <div
+                  :for={d <- m.deliverables}
+                  class="flex items-center justify-between pl-10 pr-4 py-2"
+                >
+                  <div>
+                    <p class="text-sm text-zinc-800">{d.name}</p>
+                    <p :if={d.due_date} class="text-xs text-zinc-500">
+                      Due {Calendar.strftime(d.due_date, "%b %d, %Y")}
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <.status_badge status={d.status} />
+                    <div :if={@can_edit} class="flex items-center gap-2">
+                      <button
+                        phx-click="open_deliverable_form"
+                        phx-value-id={d.id}
+                        type="button"
+                        class="text-xs text-zinc-400 hover:text-zinc-700"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        phx-click="delete_deliverable"
+                        phx-value-id={d.id}
+                        type="button"
+                        data-confirm={"Delete deliverable "#{d.name}"?"}
+                        class="text-xs text-zinc-300 hover:text-red-500"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div :if={m.deliverables == []} class="pl-10 pr-4 py-2 text-xs text-zinc-400">
+                No deliverables yet.
+              </div>
+              <div :if={@can_edit} class="pl-10 pr-4 py-2">
+                <button
+                  phx-click="open_deliverable_form"
+                  phx-value-milestone-id={m.id}
+                  type="button"
+                  class="text-xs text-zinc-500 hover:text-zinc-700"
+                >
+                  + Add deliverable
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div :if={@milestones == []} class="px-4 py-8 text-center text-sm text-zinc-400">
+            No milestones yet.
+          </div>
+        </div>
+      </div>
+
       <%!-- Project members --%>
       <.live_component
         module={MemberPanelComponent}
@@ -454,19 +818,79 @@ defmodule AgencyWeb.ProjectLive do
       </div>
 
       <%!-- Milestones --%>
-      <div :if={@milestones != []}>
-        <h2 class="text-base font-semibold text-zinc-900 mb-3">Milestones</h2>
-        <div class="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white">
-          <div :for={m <- @milestones} class="flex items-center justify-between px-4 py-3">
-            <div>
-              <p class="text-sm font-medium text-zinc-900">{m.name}</p>
-              <p :if={m.due_date} class="text-xs text-zinc-500">
-                Due {Calendar.strftime(m.due_date, "%b %d, %Y")}
-              </p>
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-semibold text-zinc-900">Milestones</h2>
+          <.button
+            :if={@can_edit}
+            phx-click="open_milestone_form"
+            class="text-xs py-1 px-3"
+          >
+            + Add Milestone
+          </.button>
+        </div>
+        <div
+          :if={@milestones != []}
+          class="divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white"
+        >
+          <div :for={m <- @milestones}>
+            <div class="flex items-center justify-between px-4 py-3">
+              <div>
+                <p class="text-sm font-medium text-zinc-900">{m.name}</p>
+                <p :if={m.due_date} class="text-xs text-zinc-500">
+                  Due {Calendar.strftime(m.due_date, "%b %d, %Y")}
+                </p>
+                <p :if={m.description} class="text-xs text-zinc-400 mt-0.5">{m.description}</p>
+              </div>
+              <select
+                phx-change="update_milestone_status"
+                name="status"
+                phx-value-id={m.id}
+                class="text-xs rounded border-zinc-300 py-0.5"
+              >
+                <option
+                  :for={s <- milestone_statuses()}
+                  value={s}
+                  selected={to_string(m.status) == s}
+                >
+                  {Phoenix.Naming.humanize(s)}
+                </option>
+              </select>
             </div>
-            <.status_badge status={m.status} />
+
+            <%!-- Deliverables nested under milestone --%>
+            <div :if={m.deliverables != []} class="border-t border-zinc-100 bg-zinc-50">
+              <div class="divide-y divide-zinc-100">
+                <div
+                  :for={d <- m.deliverables}
+                  class="flex items-center justify-between pl-10 pr-4 py-2"
+                >
+                  <div>
+                    <p class="text-sm text-zinc-700">{d.name}</p>
+                    <p :if={d.due_date} class="text-xs text-zinc-400">
+                      Due {Calendar.strftime(d.due_date, "%b %d, %Y")}
+                    </p>
+                  </div>
+                  <select
+                    phx-change="update_deliverable_status"
+                    name="status"
+                    phx-value-id={d.id}
+                    class="text-xs rounded border-zinc-300 py-0.5"
+                  >
+                    <option
+                      :for={s <- deliverable_statuses()}
+                      value={s}
+                      selected={to_string(d.status) == s}
+                    >
+                      {Phoenix.Naming.humanize(s)}
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+        <p :if={@milestones == []} class="text-sm text-zinc-400 py-2">No milestones yet.</p>
       </div>
 
       <%!-- Features Kanban board --%>
@@ -592,6 +1016,12 @@ defmodule AgencyWeb.ProjectLive do
 
   defp feature_statuses, do: ~w(backlog in_progress completed cancelled)
   defp task_statuses, do: ~w(todo in_progress in_review done blocked)
+  defp milestone_statuses, do: ~w(pending in_progress completed)
+  defp deliverable_statuses, do: ~w(pending in_review approved rejected)
+
+  defp reload_milestones(socket) do
+    assign(socket, :milestones, Planning.list_milestones_with_deliverables(socket.assigns.project.id))
+  end
 
   defp drift_color(baseline, current) do
     if Decimal.compare(current, baseline) == :gt, do: "text-red-600", else: "text-emerald-600"

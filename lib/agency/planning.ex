@@ -184,6 +184,16 @@ defmodule Agency.Planning do
     )
   end
 
+  @doc "Returns milestones for a project with deliverables preloaded, ordered by due_date."
+  def list_milestones_with_deliverables(project_id) do
+    Repo.all(
+      from m in Milestone,
+        where: m.project_id == ^project_id,
+        order_by: [asc: m.due_date],
+        preload: [deliverables: ^from(d in Deliverable, order_by: [asc: d.due_date])]
+    )
+  end
+
   def get_milestone!(id), do: Repo.get!(Milestone, id)
 
   def get_milestone_with_deliverables!(id) do
