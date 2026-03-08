@@ -200,6 +200,34 @@ defmodule Agency.Delivery do
   def get_time_block!(id), do: Repo.get!(TimeBlock, id)
 
   @doc """
+  Returns time blocks for calendar display, with the full task → feature → project
+  chain preloaded. Accepts opts:
+    - `:project_id` — filter to one project
+    - `:from_dt`    — only blocks whose end_at >= from_dt
+    - `:to_dt`      — only blocks whose start_at <= to_dt
+  """
+  def list_time_blocks_for_calendar(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+    from_dt = Keyword.get(opts, :from_dt)
+    to_dt = Keyword.get(opts, :to_dt)
+
+    query =
+      from tb in TimeBlock,
+        join: t in Task, on: t.id == tb.task_id,
+        join: f in Feature, on: f.id == t.feature_id,
+        order_by: [asc: tb.start_at],
+        preload: [time_block_assignees: [:assignee], task: [feature: :project]]
+
+    query =
+      if project_id, do: where(query, [_tb, _t, f], f.project_id == ^project_id), else: query
+
+    query = if from_dt, do: where(query, [tb], tb.end_at >= ^from_dt), else: query
+    query = if to_dt, do: where(query, [tb], tb.start_at <= ^to_dt), else: query
+
+    Repo.all(query)
+  end
+
+  @doc """
   Creates a time block for a task with the given assignees.
 
   `assignee_ids` should be a list of user IDs (strings). Only IDs present in the
