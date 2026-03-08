@@ -435,14 +435,7 @@ defmodule AgencyWeb.SprintsLive do
                   style={"top: 12px; left: #{row.left_pct}%; width: max(#{row.width_pct}%, 48px);"}
                   class={"absolute h-9 rounded-lg flex items-center overflow-hidden select-none #{project_bar_bg(row.project.status)}"}
                 >
-                  <div class="flex items-center gap-2 px-3 w-full overflow-hidden">
-                    <span class="text-sm font-semibold text-white truncate min-w-0 flex-1">
-                      {row.project.name}
-                    </span>
-                    <span class="shrink-0 rounded-full bg-white/25 px-2 py-0.5 text-xs font-bold text-white">
-                      {row.feature_count}
-                    </span>
-                  </div>
+
                 </div>
                 <div :if={!row.has_bar} class="absolute inset-0 flex items-center px-4">
                   <span class="text-xs text-zinc-300 italic">No sprints assigned</span>
@@ -474,17 +467,7 @@ defmodule AgencyWeb.SprintsLive do
                     style={"top: 8px; left: #{feat.left_pct}%; width: max(#{feat.width_pct}%, 40px);"}
                     class={"absolute block h-7 rounded-md flex items-center overflow-hidden hover:brightness-90 transition-[filter] #{feature_bar_bg(feat.feature.status)}"}
                   >
-                    <div class="flex items-center gap-2 px-2 w-full overflow-hidden">
-                      <span class="text-xs font-medium text-white truncate min-w-0 flex-1">
-                        {feat.feature.name}
-                      </span>
-                      <span
-                        :if={feat.task_count > 0}
-                        class="shrink-0 text-[10px] text-white/80 whitespace-nowrap"
-                      >
-                        {feat.done_count}/{feat.task_count}
-                      </span>
-                    </div>
+
                   </.link>
                 </div>
               </div>
