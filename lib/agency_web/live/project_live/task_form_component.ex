@@ -12,6 +12,7 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
     changeset = Delivery.change_task(task)
     resources = if task.id, do: Map.get(task, :resources, []), else: []
     task_assignees = if task.id, do: Delivery.list_task_assignees(task.id), else: []
+    time_blocks = if task.id, do: Delivery.list_time_blocks(task.id), else: []
 
     {:ok,
      socket
@@ -19,6 +20,7 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
      |> assign(:task, task)
      |> assign(:task_resources, resources)
      |> assign(:task_assignees, task_assignees)
+     |> assign(:time_blocks, time_blocks)
      |> assign_form(changeset)}
   end
 
@@ -91,6 +93,37 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
     {:noreply, assign(socket, :task_resources, updated)}
   end
 
+  def handle_event("add_time_block", params, socket) do
+    start_at = parse_datetime(params["start_at"])
+    end_at = parse_datetime(params["end_at"])
+    title = params |> Map.get("title", "") |> String.trim() |> nilify()
+    assignee_ids = params |> Map.get("assignee_ids", []) |> List.wrap()
+
+    attrs = %{"start_at" => start_at, "end_at" => end_at, "title" => title}
+
+    case Delivery.create_time_block(socket.assigns.task, attrs, assignee_ids) do
+      {:ok, time_block} ->
+        {:noreply, assign(socket, :time_blocks, socket.assigns.time_blocks ++ [time_block])}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        msg =
+          cs.errors
+          |> Enum.map(fn {field, {msg, _}} -> "#{field}: #{msg}" end)
+          |> Enum.join(", ")
+
+        {:noreply, put_flash(socket, :error, msg)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not create time block.")}
+    end
+  end
+
+  def handle_event("remove_time_block", %{"id" => id}, socket) do
+    Delivery.delete_time_block(id)
+    updated = Enum.reject(socket.assigns.time_blocks, &(&1.id == id))
+    {:noreply, assign(socket, :time_blocks, updated)}
+  end
+
   # ---------------------------------------------------------------------------
   # Private
   # ---------------------------------------------------------------------------
@@ -125,6 +158,23 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
 
   defp nilify(""), do: nil
   defp nilify(s), do: s
+
+  # Parses a datetime-local string ("2026-03-08T09:30") into a NaiveDateTime.
+  defp parse_datetime(nil), do: nil
+  defp parse_datetime(""), do: nil
+
+  defp parse_datetime(str) do
+    case NaiveDateTime.from_iso8601(str <> ":00") do
+      {:ok, dt} -> dt
+      _ -> nil
+    end
+  end
+
+  defp format_datetime(nil), do: ""
+
+  defp format_datetime(%NaiveDateTime{} = dt) do
+    Calendar.strftime(dt, "%b %d, %Y %H:%M")
+  end
 
   defp hours_options do
     Enum.map(@valid_hours, fn h ->
@@ -330,6 +380,105 @@ defmodule AgencyWeb.ProjectLive.TaskFormComponent do
             class="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
           >
             Add
+          </button>
+        </form>
+      </div>
+
+      <%!-- Time Blocks — only shown when editing an existing task --%>
+      <div :if={@task.id} class="mt-6 space-y-2">
+        <p class="text-sm font-semibold leading-6 text-zinc-800">Time Blocks</p>
+
+        <div
+          :if={@time_blocks != []}
+          class="divide-y divide-zinc-100 rounded-lg border border-zinc-200"
+        >
+          <div
+            :for={tb <- @time_blocks}
+            class="flex items-start justify-between px-3 py-2 text-sm"
+          >
+            <div class="space-y-0.5">
+              <p class="font-medium text-zinc-800">
+                {if tb.title && tb.title != "", do: tb.title, else: "Time block"}
+              </p>
+              <p class="text-xs text-zinc-500">
+                {format_datetime(tb.start_at)} – {format_datetime(tb.end_at)}
+              </p>
+              <div :if={tb.time_block_assignees != []} class="flex flex-wrap gap-1 pt-0.5">
+                <span
+                  :for={tba <- tb.time_block_assignees}
+                  class="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+                >
+                  {if tba.assignee, do: tba.assignee.name, else: "Unknown"}
+                </span>
+              </div>
+            </div>
+            <button
+              phx-click="remove_time_block"
+              phx-value-id={tb.id}
+              phx-target={@myself}
+              type="button"
+              class="ml-3 mt-0.5 text-zinc-300 hover:text-red-500 leading-none shrink-0"
+              aria-label="Remove time block"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <form
+          phx-submit="add_time_block"
+          phx-target={@myself}
+          id={"task-time-block-form-#{@task.id}"}
+          class="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3"
+        >
+          <input
+            type="text"
+            name="title"
+            placeholder="Title (optional)"
+            class="w-full text-sm rounded border-zinc-300 py-1 px-2"
+          />
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="flex flex-col gap-0.5 flex-1 min-w-40">
+              <label class="text-xs text-zinc-500">Start</label>
+              <input
+                type="datetime-local"
+                name="start_at"
+                class="text-sm rounded border-zinc-300 py-1 px-2"
+                required
+              />
+            </div>
+            <div class="flex flex-col gap-0.5 flex-1 min-w-40">
+              <label class="text-xs text-zinc-500">End</label>
+              <input
+                type="datetime-local"
+                name="end_at"
+                class="text-sm rounded border-zinc-300 py-1 px-2"
+                required
+              />
+            </div>
+          </div>
+          <div :if={@task_assignees != []}>
+            <p class="text-xs text-zinc-500 mb-1">Assign to</p>
+            <div class="flex flex-wrap gap-x-4 gap-y-1">
+              <label
+                :for={ta <- @task_assignees}
+                class="flex items-center gap-1.5 text-sm text-zinc-700 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  name="assignee_ids[]"
+                  value={ta.user_id}
+                  class="rounded border-zinc-300 text-earth-900"
+                />
+                {if ta.assignee, do: ta.assignee.name, else: "Unknown"}
+              </label>
+            </div>
+          </div>
+          <button
+            type="submit"
+            class="rounded-lg bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-200"
+          >
+            Add block
           </button>
         </form>
       </div>

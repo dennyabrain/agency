@@ -20,6 +20,7 @@ defmodule Agency.Delivery.Task do
     has_many :task_assignees, Agency.Delivery.TaskAssignee
     has_many :assignees, through: [:task_assignees, :assignee]
     has_many :resources, Agency.Delivery.Resource
+    has_many :time_blocks, Agency.Delivery.TimeBlock
 
     timestamps(type: :utc_datetime)
   end

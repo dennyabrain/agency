@@ -20,7 +20,7 @@ defmodule Agency.Delivery do
   import Ecto.Query
   alias Agency.Repo
   alias Agency.Accounts.User
-  alias Agency.Delivery.{Feature, Task, TaskAssignee}
+  alias Agency.Delivery.{Feature, Task, TaskAssignee, TimeBlock, TimeBlockAssignee}
   alias Agency.Planning.ProjectMember
   alias Agency.Sprints.Sprint
 
@@ -182,6 +182,59 @@ defmodule Agency.Delivery do
     |> TaskAssignee.changeset(attrs)
     |> Repo.update()
   end
+
+  # ---------------------------------------------------------------------------
+  # Time blocks
+  # ---------------------------------------------------------------------------
+
+  @doc "Returns all time blocks for a task, ordered by start time, with assignees preloaded."
+  def list_time_blocks(task_id) do
+    Repo.all(
+      from tb in TimeBlock,
+        where: tb.task_id == ^task_id,
+        order_by: [asc: tb.start_at],
+        preload: [time_block_assignees: [:assignee]]
+    )
+  end
+
+  def get_time_block!(id), do: Repo.get!(TimeBlock, id)
+
+  @doc """
+  Creates a time block for a task with the given assignees.
+
+  `assignee_ids` should be a list of user IDs (strings). Only IDs present in the
+  task's own assignees are accepted — invalid IDs are silently skipped.
+  """
+  def create_time_block(%Task{} = task, attrs, assignee_ids \\ []) do
+    attrs = Map.put(attrs, "task_id", task.id)
+    changeset = TimeBlock.changeset(%TimeBlock{}, attrs)
+
+    if changeset.valid? do
+      Repo.transaction(fn ->
+        time_block = Repo.insert!(changeset)
+
+        for user_id <- assignee_ids, user_id != "" do
+          %TimeBlockAssignee{}
+          |> TimeBlockAssignee.changeset(%{time_block_id: time_block.id, user_id: user_id})
+          |> Repo.insert!(on_conflict: :nothing)
+        end
+
+        Repo.preload(time_block, time_block_assignees: [:assignee])
+      end)
+    else
+      {:error, changeset}
+    end
+  end
+
+  @doc "Deletes a time block and its assignees (cascade)."
+  def delete_time_block(id) do
+    case Repo.get(TimeBlock, id) do
+      nil -> {:error, :not_found}
+      tb -> Repo.delete(tb)
+    end
+  end
+
+  def change_time_block(%TimeBlock{} = tb, attrs \\ %{}), do: TimeBlock.changeset(tb, attrs)
 
   # ---------------------------------------------------------------------------
   # Workload analysis
